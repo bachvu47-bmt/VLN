@@ -1,20 +1,20 @@
 # Hướng dẫn cài tooling & build file .apk (Android)
 
-Project Android đã được dựng sẵn tại thư mục `android/` (Capacitor). Để xuất ra file `.apk`, máy cần cài **JDK 17** + **Android Studio / Android SDK**. Máy hiện tại **chưa có** các công cụ này — làm theo các bước dưới đây.
+Project Android đã được dựng sẵn tại thư mục `android/` (Capacitor). Để xuất ra file `.apk`, máy cần cài **JDK 21** (Capacitor 8 yêu cầu) + **Android Studio / Android SDK**. Máy hiện tại **chưa có** các công cụ này — làm theo các bước dưới đây.
 
 ---
 
-## Bước 1 — Cài JDK 17
+## Bước 1 — Cài JDK 21
 
 **Cách nhanh (winget):**
 ```powershell
-winget install EclipseAdoptium.Temurin.17.JDK
+winget install EclipseAdoptium.Temurin.21.JDK
 ```
 Sau khi cài, mở PowerShell **mới** và kiểm tra:
 ```powershell
-java -version    # phải thấy "17.x"
+java -version    # phải thấy "21.x"
 ```
-> Nếu chưa nhận, đặt biến môi trường `JAVA_HOME` trỏ tới thư mục JDK (vd `C:\Program Files\Eclipse Adoptium\jdk-17...`).
+> Nếu chưa nhận, đặt biến môi trường `JAVA_HOME` trỏ tới thư mục JDK (vd `C:\Program Files\Eclipse Adoptium\jdk-21...`).
 
 ---
 
