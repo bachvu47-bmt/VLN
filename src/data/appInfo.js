@@ -8,8 +8,8 @@ export const PHIEN_BAN_HIEN_TAI = '1.0.0'
 // ---- Cấu hình GitHub Releases (nguồn cập nhật OTA) ----
 // ⚠️ Đổi owner/repo thành repo GitHub thật của bạn.
 export const GITHUB_REPO = {
-  owner: 'khoianh-home',
-  repo: 'vatlieunha-sales',
+  owner: 'bachvu47-bmt',
+  repo: 'VLN',
 }
 
 // Endpoint REST API lấy bản release mới nhất

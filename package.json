@@ -41,8 +41,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "khoianh-home",
-        "repo": "vatlieunha-sales"
+        "owner": "bachvu47-bmt",
+        "repo": "VLN"
       }
     ]
   },
