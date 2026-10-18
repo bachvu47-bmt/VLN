@@ -1,14 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-
-function RoofWhite() {
-  return (
-    <svg viewBox="0 0 64 40" className="h-9 w-12" aria-hidden>
-      <path d="M32 3 L61 26 H50 L32 12 L14 26 H3 Z" fill="#ffffff" />
-      <path d="M32 16 L48 28 H41 L32 21 L23 28 H16 Z" fill="#ffffff" opacity="0.5" />
-    </svg>
-  )
-}
+import logoRound from '../assets/logo-round.png'
 
 export default function LoginScreen() {
   const { dangNhap } = useAuth()
@@ -34,8 +26,10 @@ export default function LoginScreen() {
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-gradient-to-b from-brand-600 to-brand-700">
       {/* Khối thương hiệu đỏ */}
       <div className="relative px-6 pb-16 pt-14 text-white">
-        <div className="flex items-center gap-2">
-          <RoofWhite />
+        <div className="flex items-center gap-3">
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white p-1.5 shadow-sm">
+            <img src={logoRound} alt="Vật Liệu Nhà" className="h-full w-full object-contain" />
+          </span>
           <span className="text-xl font-extrabold uppercase tracking-wide">Vật Liệu Nhà</span>
         </div>
         <h2 className="mt-6 text-lg font-semibold leading-snug">
