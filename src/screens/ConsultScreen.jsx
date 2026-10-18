@@ -84,18 +84,22 @@ function CardDon({ don }) {
   )
 }
 
-export default function ConsultScreen() {
+export default function ConsultScreen({ onMo }) {
   return (
     <div>
       <h2 className="text-2xl font-black text-gray-900">Gợi ý tư vấn sau bán</h2>
       <p className="mb-4 mt-1 text-sm text-gray-500">Đơn đồng bộ từ KiotViet · Bot AI gợi ý & gửi tài liệu</p>
 
-      <div className="mb-4 flex items-center justify-between rounded-xl bg-green-50 px-4 py-3">
+      <div className="mb-3 flex items-center justify-between rounded-xl bg-green-50 px-4 py-3">
         <div className="flex items-center gap-2 text-sm font-semibold text-green-700">
           <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" /> Đã đồng bộ KiotViet
         </div>
         <span className="text-xs text-green-600">{DON_HANG.length} đơn hôm nay</span>
       </div>
+
+      <button onClick={() => onMo && onMo('guitailieu')} className="tap mb-4 flex w-full items-center justify-center gap-2 rounded-xl border border-brand-200 bg-brand-50 py-3 text-sm font-bold text-brand-700">
+        📤 Gửi tài liệu cho khách
+      </button>
 
       <div className="space-y-3">
         {DON_HANG.map((don) => <CardDon key={don.id} don={don} />)}

@@ -11,7 +11,11 @@ import KhachScreen from './screens/KhachScreen'
 import ConsultScreen from './screens/ConsultScreen'
 import ThemScreen from './screens/ThemScreen'
 import ProductDetailScreen from './screens/ProductDetailScreen'
+import TuVanAIScreen from './screens/TuVanAIScreen'
+import TinhVatTuScreen from './screens/TinhVatTuScreen'
+import GuiTaiLieuScreen from './screens/GuiTaiLieuScreen'
 import IngestionScreen from './screens/IngestionScreen'
+import DuyetScreen from './screens/DuyetScreen'
 import UsersScreen from './screens/UsersScreen'
 
 const TAB_LIST = [
@@ -21,21 +25,6 @@ const TAB_LIST = [
   { id: 'sauban', nhan: 'Sau bán', icon: 'sauban' },
   { id: 'them', nhan: 'Thêm', icon: 'them' },
 ]
-
-// Màn phụ (overlay) toàn màn hình, có nút quay lại
-function OverlayScreen({ title, onClose, children }) {
-  return (
-    <div className="fixed inset-0 z-50 mx-auto flex max-w-md flex-col bg-gray-50">
-      <header className="flex items-center gap-2 border-b border-gray-100 bg-white px-3 py-3">
-        <button onClick={onClose} className="tap flex h-9 w-9 items-center justify-center rounded-full text-gray-700">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6" strokeLinecap="round" strokeLinejoin="round"><path d="M15 6l-6 6 6 6" /></svg>
-        </button>
-        <span className="text-sm font-bold text-gray-900">{title}</span>
-      </header>
-      <div className="flex-1 overflow-y-auto px-4 pb-10 pt-4">{children}</div>
-    </div>
-  )
-}
 
 export default function App() {
   const { user, dangXuat } = useAuth()
@@ -66,7 +55,7 @@ export default function App() {
   if (!user) return <LoginScreen />
 
   const mo = (type, data) => setOverlay({ type, data })
-  const dongOverlay = () => setOverlay(null)
+  const dong = () => setOverlay(null)
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-gray-50 shadow-xl">
@@ -79,10 +68,10 @@ export default function App() {
       />
 
       <main className="flex-1 overflow-y-auto px-4 pb-24 pt-4">
-        {tab === 'home' && <HomeScreen user={user} onTab={setTab} onMo={mo} />}
+        {tab === 'home' && <HomeScreen onTab={setTab} onMo={mo} />}
         {tab === 'lookup' && <LookupScreen onMo={mo} />}
         {tab === 'khach' && <KhachScreen />}
-        {tab === 'sauban' && <ConsultScreen />}
+        {tab === 'sauban' && <ConsultScreen onMo={mo} />}
         {tab === 'them' && (
           <ThemScreen user={user} onMo={mo} onCapNhat={() => setHienCapNhat(true)} onLogout={dangXuat} />
         )}
@@ -90,14 +79,14 @@ export default function App() {
 
       <BottomNav tabs={TAB_LIST} active={tab} onChange={setTab} />
 
-      {/* Overlays */}
-      {overlay?.type === 'detail' && <ProductDetailScreen sp={overlay.data} onClose={dongOverlay} />}
-      {overlay?.type === 'ingest' && (
-        <OverlayScreen title="Cổng AI — Nạp dữ liệu" onClose={dongOverlay}><IngestionScreen /></OverlayScreen>
-      )}
-      {overlay?.type === 'users' && (
-        <OverlayScreen title="Nhân sự & Tài khoản" onClose={dongOverlay}><UsersScreen /></OverlayScreen>
-      )}
+      {/* Overlays toàn màn hình */}
+      {overlay?.type === 'detail' && <ProductDetailScreen sp={overlay.data} onClose={dong} />}
+      {overlay?.type === 'tuvanai' && <TuVanAIScreen onClose={dong} />}
+      {overlay?.type === 'tinhvattu' && <TinhVatTuScreen sp={overlay.data} onClose={dong} />}
+      {overlay?.type === 'guitailieu' && <GuiTaiLieuScreen onClose={dong} />}
+      {overlay?.type === 'ingest' && <IngestionScreen onClose={dong} />}
+      {overlay?.type === 'duyet' && <DuyetScreen onClose={dong} />}
+      {overlay?.type === 'users' && <UsersScreen onClose={dong} />}
 
       {hienCapNhat && <AutoUpdateModal capNhatSan={capNhat} onClose={() => setHienCapNhat(false)} />}
     </div>

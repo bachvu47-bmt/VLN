@@ -11,7 +11,7 @@ function Ico({ d, className = 'h-6 w-6' }) {
 const SHORTCUTS = [
   { ten: 'Tra cứu sản phẩm', d: 'M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2V5Z M4 5a2 2 0 0 0 2 2h12', tab: 'lookup' },
   { ten: 'Hướng dẫn thi công', d: 'M6 3h9l4 4v14H6V3Z M14 3v4h4 M9 12h6 M9 16h6', tab: 'lookup' },
-  { ten: 'Giải pháp theo nhu cầu', d: 'M9 18h6 M10 21h4 M12 3a6 6 0 0 1 4 10.5c-.7.7-1 1.2-1 2.5H9c0-1.3-.3-1.8-1-2.5A6 6 0 0 1 12 3Z', tab: 'lookup' },
+  { ten: 'Giải pháp theo nhu cầu', d: 'M9 18h6 M10 21h4 M12 3a6 6 0 0 1 4 10.5c-.7.7-1 1.2-1 2.5H9c0-1.3-.3-1.8-1-2.5A6 6 0 0 1 12 3Z', overlay: 'tuvanai' },
   { ten: 'Tư vấn khách hàng', d: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z M2.5 20a6.5 6.5 0 0 1 13 0 M17 11a3 3 0 1 0 0-6 M21.5 20a5.5 5.5 0 0 0-5-5.5', tab: 'khach' },
 ]
 
@@ -41,7 +41,7 @@ export default function HomeScreen({ onTab, onMo }) {
       {/* 4 shortcut */}
       <div className="grid grid-cols-4 gap-2.5">
         {SHORTCUTS.map((s) => (
-          <button key={s.ten} onClick={() => onTab(s.tab)} className="tap flex flex-col items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-1 py-3 text-center">
+          <button key={s.ten} onClick={() => (s.overlay ? onMo(s.overlay) : onTab(s.tab))} className="tap flex flex-col items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-1 py-3 text-center">
             <span className="text-brand-600"><Ico d={s.d} className="h-6 w-6" /></span>
             <span className="text-[11px] font-semibold leading-tight text-gray-700">{s.ten}</span>
           </button>

@@ -65,7 +65,7 @@ function ProductCard({ sp, onMo }) {
         <button onClick={() => onMo('detail', sp)} className="tap flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700">
           <Ico d={BTN_ICON.doc} className="h-4 w-4" /> {sp.nutTaiLieu}
         </button>
-        <button onClick={() => onMo('detail', sp)} className="tap flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700">
+        <button onClick={() => onMo(sp.nutPhu.icon === 'calc' ? 'tinhvattu' : 'detail', sp)} className="tap flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700">
           <Ico d={BTN_ICON[sp.nutPhu.icon]} className="h-4 w-4" /> {sp.nutPhu.label}
         </button>
       </div>
