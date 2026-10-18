@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import ScreenShell from '../components/ScreenShell'
-import { MAIKA, MAIKA_GOI_Y, maikaChao, maikaTraLoi } from '../services/maika'
+import { MAIKA, MAIKA_GOI_Y, maikaChao } from '../services/maika'
+import { maikaChatAI, maikaCheDo } from '../services/maikaAI'
 
 let _mid = 0
 
@@ -35,14 +36,14 @@ export default function TuVanAIScreen({ onClose, onMo }) {
   const gui = (text) => {
     const noiDung = (text ?? tin).trim()
     if (!noiDung) return
-    setMsgs((m) => [...m, { id: ++_mid, tu: 'user', text: noiDung }])
+    const newMsgs = [...msgs, { id: ++_mid, tu: 'user', text: noiDung }]
+    setMsgs(newMsgs)
     setTin('')
     setDangGo(true)
-    setTimeout(() => {
-      const tl = maikaTraLoi(noiDung)
+    maikaChatAI(newMsgs).then((tl) => {
       setMsgs((m) => [...m, { id: ++_mid, tu: 'maika', ...tl }])
       setDangGo(false)
-    }, 650)
+    })
   }
 
   const chipCuoi = (() => {
@@ -65,9 +66,10 @@ export default function TuVanAIScreen({ onClose, onMo }) {
     </div>
   )
 
+  const online = maikaCheDo() !== 'offline'
   const right = (
-    <span className="flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-bold text-green-600">
-      <span className="h-1.5 w-1.5 rounded-full bg-green-500" /> Trực tuyến
+    <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${online ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${online ? 'bg-green-500' : 'bg-gray-400'}`} /> {online ? 'AI trực tuyến' : 'Ngoại tuyến'}
     </span>
   )
 
