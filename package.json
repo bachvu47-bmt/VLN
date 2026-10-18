@@ -63,6 +63,8 @@
     "concurrently": "^10.0.6",
     "electron": "^44.9.0",
     "electron-builder": "^26.15.3",
+    "libsodium-wrappers": "^0.8.4",
+    "node-forge": "^1.4.0",
     "oxlint": "^1.81.0",
     "png-to-ico": "^3.0.2",
     "tailwindcss": "^4.3.3",
