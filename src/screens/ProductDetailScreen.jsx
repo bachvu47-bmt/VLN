@@ -57,25 +57,31 @@ export default function ProductDetailScreen({ sp, onClose }) {
         {/* Hero */}
         <div className="flex gap-3">
           <div className="flex-shrink-0 text-center">
-            <div className={`flex h-28 w-24 items-center justify-center rounded-xl border border-gray-100 ${sp.anhBg}`}>
-              <span className="text-5xl">{sp.icon}</span>
+            <div className={`flex h-28 w-24 items-center justify-center overflow-hidden rounded-xl border border-gray-100 ${sp.anhBg}`}>
+              {sp.anh ? (
+                <img src={sp.anh} alt={sp.ten} loading="lazy" className="h-full w-full object-contain" />
+              ) : (
+                <span className="text-5xl">{sp.icon}</span>
+              )}
             </div>
-            <div className="mt-1 text-[9px] text-gray-400">Dữ liệu minh họa</div>
+            <div className="mt-1 text-[9px] text-gray-400">{sp.tuWeb ? 'vatlieunha.vn' : 'Dữ liệu minh họa'}</div>
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-black text-gray-900">{sp.ten}<span className="text-brand-600">®</span></h1>
+            <h1 className="text-xl font-black text-gray-900">{sp.ten}{!sp.tuWeb && <span className="text-brand-600">®</span>}</h1>
             <p className="mt-0.5 text-sm text-gray-600">{sp.tenNgan}</p>
-            <div className="mt-3">
-              <div className="mb-1 text-[11px] font-semibold text-gray-500">Chọn quy cách</div>
-              <div className="flex flex-wrap gap-1.5">
-                {sp.quyCach.map((q) => (
-                  <button key={q} onClick={() => setSize(q)}
-                    className={`tap rounded-lg border px-2.5 py-1 text-xs font-semibold ${size === q ? 'border-brand-500 bg-brand-50 text-brand-600' : 'border-gray-200 text-gray-600'}`}>
-                    {q}
-                  </button>
-                ))}
+            {sp.quyCach?.length > 0 && (
+              <div className="mt-3">
+                <div className="mb-1 text-[11px] font-semibold text-gray-500">Chọn quy cách</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {sp.quyCach.map((q) => (
+                    <button key={q} onClick={() => setSize(q)}
+                      className={`tap rounded-lg border px-2.5 py-1 text-xs font-semibold ${size === q ? 'border-brand-500 bg-brand-50 text-brand-600' : 'border-gray-200 text-gray-600'}`}>
+                      {q}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 

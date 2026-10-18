@@ -3,7 +3,7 @@
 // ============================================================
 
 // Phiên bản hiện đang chạy trên thiết bị
-export const PHIEN_BAN_HIEN_TAI = '1.1.4'
+export const PHIEN_BAN_HIEN_TAI = '1.1.5'
 
 // ---- Cấu hình GitHub Releases (nguồn cập nhật OTA) ----
 // ⚠️ Đổi owner/repo thành repo GitHub thật của bạn.

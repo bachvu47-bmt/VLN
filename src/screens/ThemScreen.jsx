@@ -1,5 +1,10 @@
+import { useState } from 'react'
 import { VAI_TRO } from '../data/mockData'
 import { PHIEN_BAN_HIEN_TAI } from '../data/appInfo'
+import { useToast } from '../context/ToastContext'
+import { dongBoWebsite } from '../services/webSyncService'
+import { luuSanPhamWeb, laySanPhamWeb } from '../data/productStore'
+import ChangePasswordModal from '../components/ChangePasswordModal'
 
 function vietTat(t = '') {
   const w = t.trim().split(/\s+/)
@@ -13,12 +18,33 @@ function Ico({ d, className = 'h-5 w-5' }) {
 export default function ThemScreen({ user, onMo, onCapNhat, onLogout }) {
   const vt = VAI_TRO[user.vaiTro]
   const admin = user.vaiTro === 'admin'
+  const toast = useToast()
+  const [moDoiMK, setMoDoiMK] = useState(false)
+  const [dangDongBo, setDangDongBo] = useState(false)
+  const [soWeb, setSoWeb] = useState(laySanPhamWeb().length)
+
+  const dongBo = async () => {
+    if (dangDongBo) return
+    setDangDongBo(true)
+    toast('Đang đồng bộ sản phẩm từ vatlieunha.vn...', 'info')
+    try {
+      const sp = await dongBoWebsite(() => {})
+      luuSanPhamWeb(sp)
+      setSoWeb(sp.length)
+      toast(`Đã đồng bộ ${sp.length} sản phẩm vào Tra cứu`, 'success')
+    } catch (e) {
+      toast('Đồng bộ lỗi: ' + (e.message || e) + ' (có thể do CORS trên web — thử trên bản .apk)', 'error')
+    } finally {
+      setDangDongBo(false)
+    }
+  }
 
   const MENU = [
     { ten: 'Trợ lý Maika', phu: 'Hỏi đáp kỹ thuật & tư vấn sản phẩm', d: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10Z M8 9h8 M8 12h5', on: () => onMo('tuvanai') },
     admin && { ten: 'Cổng Maika — Nạp dữ liệu', phu: 'Tải ảnh/video/PDF, Maika phân loại', d: 'M12 3v3 M9 6h6a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3Z M9.5 12h.01 M14.5 12h.01 M9 16h6', on: () => onMo('ingest') },
     admin && { ten: 'Duyệt kiến thức', phu: 'Xét duyệt đề xuất cập nhật kỹ thuật', d: 'M9 12l2 2 4-4 M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4Z', on: () => onMo('duyet') },
     admin && { ten: 'Nhân sự & Tài khoản', phu: 'Quản lý người dùng, phiên đăng nhập', d: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z M2.5 20a6.5 6.5 0 0 1 13 0 M17 11a3 3 0 1 0 0-6 M21.5 20a5.5 5.5 0 0 0-5-5.5', on: () => onMo('users') },
+    { ten: 'Đổi mật khẩu', phu: 'Cập nhật mật khẩu đăng nhập', d: 'M6 10V8a6 6 0 1 1 12 0v2 M5 10h14v10H5z M12 14v2', on: () => setMoDoiMK(true) },
     { ten: 'Cập nhật phần mềm', phu: `Phiên bản hiện tại v${PHIEN_BAN_HIEN_TAI}`, d: 'M21 12a9 9 0 1 1-3-6.7 M21 3v6h-6', on: onCapNhat },
   ].filter(Boolean)
 
@@ -50,12 +76,29 @@ export default function ThemScreen({ user, onMo, onCapNhat, onLogout }) {
         ))}
       </div>
 
+      {/* Đồng bộ dữ liệu từ Website (Admin) */}
+      {admin && (
+        <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4">
+          <div className="mb-1 flex items-center gap-2 text-sm font-black text-gray-900">🔄 Đồng bộ dải sản phẩm</div>
+          <p className="mb-3 text-xs text-gray-600">
+            Lấy danh mục, hình ảnh & sản phẩm mới nhất từ <b>vatlieunha.vn</b> vào danh mục Tra cứu (Flashcard).
+            {soWeb > 0 && <span className="font-semibold text-brand-700"> Đã có {soWeb} sản phẩm web.</span>}
+          </p>
+          <button onClick={dongBo} disabled={dangDongBo}
+            className="tap flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 py-3 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-60">
+            {dangDongBo ? '⏳ Đang đồng bộ...' : '⬇ Đồng bộ dữ liệu từ Website vatlieunha.vn'}
+          </button>
+        </div>
+      )}
+
       {/* Đăng xuất */}
       <button onClick={onLogout} className="tap flex w-full items-center justify-center gap-2 rounded-xl border border-brand-200 bg-brand-50 py-3 text-sm font-bold text-brand-700">
         <Ico d="M15 12H3 M9 6l-6 6 6 6 M15 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" /> Đăng xuất
       </button>
 
       <p className="pb-2 text-center text-[11px] text-gray-400">© 2026 Vật Liệu Nhà · Hệ thống bán hàng nội bộ</p>
+
+      {moDoiMK && <ChangePasswordModal onClose={() => setMoDoiMK(false)} />}
     </div>
   )
 }

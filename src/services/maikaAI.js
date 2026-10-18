@@ -14,6 +14,7 @@
 // ============================================================
 import { SAN_PHAM } from '../data/mockData'
 import { MAIKA, maikaTraLoi } from './maika'
+import { geminiChat, geminiCoCauHinh } from './geminiService'
 
 const BASE_URL = (import.meta.env.VITE_MAIKA_BASE_URL || '').replace(/\/$/, '')
 const API_KEY = import.meta.env.VITE_MAIKA_API_KEY || ''
@@ -21,6 +22,7 @@ const MODEL = import.meta.env.VITE_MAIKA_MODEL || 'gemini-2.0-flash'
 const PROXY_URL = import.meta.env.VITE_MAIKA_PROXY_URL || ''
 
 export function maikaCheDo() {
+  if (geminiCoCauHinh()) return 'gemini'
   if (PROXY_URL) return 'proxy'
   if (BASE_URL && API_KEY) return 'api'
   return 'offline'
@@ -119,7 +121,9 @@ export async function maikaChatAI(lichSu) {
   }
 
   try {
-    const text = (await goiLLM(convMessages)) || '(Maika chưa có câu trả lời)'
+    const text =
+      (nt === 'gemini' ? await geminiChat(lichSu) : await goiLLM(convMessages)) ||
+      '(Maika chưa có câu trả lời)'
     return { text, sp: timSP(cauHoiCuoi + ' ' + text), nguon: nt }
   } catch (e) {
     console.warn('[Maika AI] Lỗi gọi LLM, chuyển sang offline:', e.message)

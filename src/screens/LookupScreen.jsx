@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { DANH_MUC, SAN_PHAM } from '../data/mockData'
+import { dangKyTheoDoi, laySanPhamWeb } from '../data/productStore'
 
 function Ico({ d, className = 'h-4 w-4' }) {
   return (
@@ -34,10 +35,14 @@ function ProductCard({ sp, onMo }) {
       <div className="flex gap-3">
         {/* Ảnh */}
         <button onClick={() => onMo('detail', sp)} className="flex-shrink-0 text-center">
-          <div className={`flex h-28 w-24 items-center justify-center rounded-xl border border-gray-100 ${sp.anhBg}`}>
-            <span className="text-5xl">{sp.icon}</span>
+          <div className={`flex h-28 w-24 items-center justify-center overflow-hidden rounded-xl border border-gray-100 ${sp.anhBg}`}>
+            {sp.anh ? (
+              <img src={sp.anh} alt={sp.ten} loading="lazy" className="h-full w-full object-contain" />
+            ) : (
+              <span className="text-5xl">{sp.icon}</span>
+            )}
           </div>
-          <div className="mt-1 text-[9px] text-gray-400">Dữ liệu minh họa</div>
+          <div className="mt-1 text-[9px] text-gray-400">{sp.tuWeb ? 'vatlieunha.vn' : 'Dữ liệu minh họa'}</div>
         </button>
 
         {/* Nội dung */}
@@ -46,7 +51,12 @@ function ProductCard({ sp, onMo }) {
           <p className="mt-0.5 text-[13px] leading-snug text-gray-600">{sp.tenNgan}</p>
           <div className="mt-1.5">
             <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] text-brand-700">
-              <b>{sp.hang}</b> <span className="text-brand-500">(Dữ liệu minh hoạ)</span>
+              <b>{sp.hang}</b>{' '}
+              {sp.tuWeb ? (
+                <span className="text-brand-500">(từ website)</span>
+              ) : (
+                <span className="text-brand-500">(Dữ liệu minh hoạ)</span>
+              )}
             </span>
           </div>
           <ul className="mt-2 space-y-0.5">
@@ -71,6 +81,7 @@ function ProductCard({ sp, onMo }) {
       </div>
 
       {/* Quy cách */}
+      {sp.quyCach?.length > 0 && (
       <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-3">
         <span className="text-xs text-gray-500">Quy cách phổ biến</span>
         <div className="flex flex-wrap gap-1.5">
@@ -87,6 +98,7 @@ function ProductCard({ sp, onMo }) {
           ))}
         </div>
       </div>
+      )}
     </div>
   )
 }
@@ -94,10 +106,13 @@ function ProductCard({ sp, onMo }) {
 export default function LookupScreen({ onMo }) {
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('all')
+  const [web, setWeb] = useState(laySanPhamWeb())
+
+  useEffect(() => dangKyTheoDoi(() => setWeb(laySanPhamWeb())), [])
 
   const ketQua = useMemo(() => {
     const key = q.trim().toLowerCase()
-    return SAN_PHAM.filter((sp) => {
+    return [...SAN_PHAM, ...web].filter((sp) => {
       const hopCat = cat === 'all' || sp.danhMuc === cat
       const hopTim =
         !key ||
@@ -107,7 +122,7 @@ export default function LookupScreen({ onMo }) {
         sp.tags.some((t) => t.toLowerCase().includes(key))
       return hopCat && hopTim
     })
-  }, [q, cat])
+  }, [q, cat, web])
 
   return (
     <div>

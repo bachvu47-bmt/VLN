@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { NHAN_CHANGELOG, PHIEN_BAN_HIEN_TAI } from '../data/appInfo'
 import { nhanDienNenTang } from '../services/updateService'
 import { caiDatBanMoi, kiemTraGitHub, taiAssetGitHub } from '../services/githubUpdater'
+import { laNativeAndroid, taiVaCaiApk } from '../services/autoUpdateService'
+import { useToast } from '../context/ToastContext'
 
 const NHAN_NEN_TANG = {
   pc: { icon: '🖥️', ten: 'PC (.exe)', kieu: 'exe' },
@@ -19,6 +21,10 @@ export default function AutoUpdateModal({ onClose, capNhatSan = null }) {
   const [moi, setMoi] = useState(capNhatSan?.moi || null)
   const [nguon, setNguon] = useState(capNhatSan?.nguon || null)
   const [tienDo, setTienDo] = useState(0)
+  const [daTai, setDaTai] = useState(0)
+  const [tong, setTong] = useState(0)
+  const toast = useToast()
+  const apkNative = laNativeAndroid()
 
   const kiemTra = async () => {
     setTt('checking')
@@ -42,6 +48,27 @@ export default function AutoUpdateModal({ onClose, capNhatSan = null }) {
   const caiDat = async () => {
     setTt('installing')
     await caiDatBanMoi(moi)
+  }
+
+  // MOBILE (.apk): tải nền trong app → tự mở trình cài đặt Android (không ra web)
+  const taiVaCaiMobile = async () => {
+    setTt('downloading')
+    setTienDo(0)
+    setDaTai(0)
+    setTong(0)
+    try {
+      await taiVaCaiApk(moi?.taiVe?.apk, (bytes, total) => {
+        setDaTai(bytes)
+        if (total) setTong(total)
+        setTienDo(total > 0 ? Math.round((bytes / total) * 100) : 0)
+      })
+      setTt('installing')
+      toast('Đang chuẩn bị cài đặt bản cập nhật mới...', 'info')
+      setTimeout(onClose, 900)
+    } catch (e) {
+      toast('Lỗi tải cập nhật: ' + (e.message || e), 'error')
+      setTt('available')
+    }
   }
 
   const kichThuoc = moi ? moi.kichThuocMB[nenTang.kieu] ?? moi.kichThuocMB.exe : null
@@ -145,7 +172,7 @@ export default function AutoUpdateModal({ onClose, capNhatSan = null }) {
             {(tt === 'downloading' || tt === 'ready') && (
               <div className="mb-3">
                 <div className="mb-1 flex justify-between text-[11px] font-semibold text-gray-500">
-                  <span>{tt === 'ready' ? 'Đã tải xong từ GitHub' : 'Đang tải từ GitHub Assets...'}</span>
+                  <span>{tt === 'ready' ? 'Đã tải xong' : `Đang tải... ${tienDo}%`}</span>
                   <span>{tienDo}%</span>
                 </div>
                 <div className="h-2.5 w-full overflow-hidden rounded-full bg-gray-200">
@@ -154,35 +181,39 @@ export default function AutoUpdateModal({ onClose, capNhatSan = null }) {
                     style={{ width: `${tienDo}%` }}
                   />
                 </div>
+                {apkNative && tt === 'downloading' && (
+                  <div className="mt-1 text-center text-[11px] text-gray-500">
+                    {(daTai / 1024 / 1024).toFixed(1)} / {tong > 0 ? (tong / 1024 / 1024).toFixed(1) : (moi.kichThuocMB?.apk || 3.3)} MB
+                  </div>
+                )}
               </div>
             )}
 
             {/* Nút hành động */}
             {tt === 'available' && (
               <button
-                onClick={taiVe}
-                className="w-full rounded-xl bg-brand-600 py-3 text-sm font-bold text-white transition hover:bg-brand-700"
+                onClick={apkNative ? taiVaCaiMobile : taiVe}
+                className="tap w-full rounded-xl bg-brand-600 py-3 text-sm font-bold text-white transition hover:bg-brand-700"
               >
                 ⬇ Tải & Cập nhật v{moi.phienBan}
               </button>
             )}
 
-            {tt === 'ready' && (
+            {/* PC/web: bước cài đặt riêng sau khi tải (mobile tự cài luôn) */}
+            {tt === 'ready' && !apkNative && (
               <button
                 onClick={caiDat}
-                className="w-full rounded-xl bg-green-600 py-3 text-sm font-bold text-white transition hover:bg-green-700"
+                className="tap w-full rounded-xl bg-green-600 py-3 text-sm font-bold text-white transition hover:bg-green-700"
               >
-                {nt === 'pc'
-                  ? '🔁 Cài đặt & Khởi động lại'
-                  : nt === 'mobile'
-                  ? '📲 Cài đặt đè (.apk)'
-                  : '🔁 Mở trang Release'}
+                {nt === 'pc' ? '🔁 Cài đặt & Khởi động lại' : '🔁 Mở trang Release'}
               </button>
             )}
 
             {tt === 'installing' && (
               <div className="rounded-xl bg-gray-900 py-4 text-center text-sm font-semibold text-green-300">
-                <span className="animate-pulse">⚙ Đang cài đặt & khởi động lại...</span>
+                <span className="animate-pulse">
+                  {apkNative ? '📲 Đang mở trình cài đặt bản mới...' : '⚙ Đang cài đặt & khởi động lại...'}
+                </span>
               </div>
             )}
 
