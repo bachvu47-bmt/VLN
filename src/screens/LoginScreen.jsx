@@ -1,6 +1,14 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import logoBlock from '../assets/logo-block.svg'
+
+function RoofWhite() {
+  return (
+    <svg viewBox="0 0 64 40" className="h-9 w-12" aria-hidden>
+      <path d="M32 3 L61 26 H50 L32 12 L14 26 H3 Z" fill="#ffffff" />
+      <path d="M32 16 L48 28 H41 L32 21 L23 28 H16 Z" fill="#ffffff" opacity="0.5" />
+    </svg>
+  )
+}
 
 export default function LoginScreen() {
   const { dangNhap } = useAuth()
@@ -17,93 +25,84 @@ export default function LoginScreen() {
     if (!kq.ok) setLoi(kq.loi)
   }
 
-  const dangNhapNhanh = (dd) => {
+  const nhanh = (dd) => {
     setDinhDanh(dd)
     setMatKhau('123456')
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-brand-600 to-brand-800 px-5 py-10">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="mb-6 text-center text-white">
-          <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-2xl bg-white p-3 shadow-lg">
-            <img src={logoBlock} alt="Vật Liệu Nhà" className="h-full w-full object-contain" />
-          </div>
-          <h1 className="mt-4 text-2xl font-black tracking-tight">Vật Liệu Nhà</h1>
-          <p className="text-sm text-brand-100">Hệ thống bán hàng nội bộ</p>
+    <div className="mx-auto flex min-h-screen max-w-md flex-col bg-gradient-to-b from-brand-600 to-brand-700">
+      {/* Khối thương hiệu đỏ */}
+      <div className="relative px-6 pb-16 pt-14 text-white">
+        <div className="flex items-center gap-2">
+          <RoofWhite />
+          <span className="text-xl font-extrabold uppercase tracking-wide">Vật Liệu Nhà</span>
         </div>
+        <h2 className="mt-6 text-lg font-semibold leading-snug">
+          Tri thức vững vàng
+          <br />
+          Bán hàng dễ dàng hơn
+        </h2>
+        <span className="pointer-events-none absolute right-5 top-10 text-7xl opacity-20">🏠</span>
+      </div>
 
-        {/* Form */}
-        <form onSubmit={xuLy} className="rounded-2xl bg-white p-6 shadow-2xl">
-          <h2 className="mb-1 text-lg font-bold text-gray-900">Đăng nhập</h2>
-          <p className="mb-4 text-xs text-gray-500">
-            Dùng Email <b>@vatlieunha.vn</b>, Username hoặc Số điện thoại.
-          </p>
+      {/* Sheet trắng */}
+      <div className="flex-1 rounded-t-3xl bg-white px-6 pb-10 pt-7 shadow-2xl">
+        <h1 className="text-2xl font-black text-gray-900">Đăng nhập</h1>
+        <p className="mb-6 mt-1 text-sm text-gray-500">Dành cho nhân viên nội bộ Vật Liệu Nhà</p>
 
-          <label className="mb-1 block text-xs font-semibold text-gray-600">
-            Email / Username / SĐT
-          </label>
-          <input
-            value={dinhDanh}
-            onChange={(e) => setDinhDanh(e.target.value)}
-            placeholder="vd: khoa.vb@vatlieunha.vn"
-            className="mb-3 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
-          />
+        <form onSubmit={xuLy}>
+          <div className="mb-3 flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 focus-within:border-brand-500 focus-within:bg-white">
+            <span className="text-gray-400">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z M5 20a7 7 0 0 1 14 0" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </span>
+            <input
+              value={dinhDanh}
+              onChange={(e) => setDinhDanh(e.target.value)}
+              placeholder="Email / Username / Số điện thoại"
+              className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
+            />
+          </div>
 
-          <label className="mb-1 block text-xs font-semibold text-gray-600">Mật khẩu</label>
-          <div className="relative mb-2">
+          <div className="mb-2 flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 focus-within:border-brand-500 focus-within:bg-white">
+            <span className="text-gray-400">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><path d="M6 10V8a6 6 0 1 1 12 0v2 M5 10h14v10H5z" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </span>
             <input
               type={hienMK ? 'text' : 'password'}
               value={matKhau}
               onChange={(e) => setMatKhau(e.target.value)}
-              placeholder="••••••"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2.5 pr-12 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+              placeholder="Mật khẩu"
+              className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
             />
-            <button
-              type="button"
-              onClick={() => setHienMK((v) => !v)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-brand-600"
-            >
-              {hienMK ? 'Ẩn' : 'Hiện'}
+            <button type="button" onClick={() => setHienMK((v) => !v)} className="text-gray-400">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </button>
           </div>
 
-          {loi && (
-            <div className="mb-3 rounded-lg bg-brand-50 px-3 py-2 text-xs font-medium text-brand-700">
-              ⚠ {loi}
-            </div>
-          )}
+          {loi && <div className="mb-3 rounded-lg bg-brand-50 px-3 py-2 text-xs font-medium text-brand-700">⚠ {loi}</div>}
 
           <button
             type="submit"
-            className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-bold text-white shadow-md transition hover:bg-brand-700 active:scale-[0.99]"
+            className="tap mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 py-3.5 text-sm font-bold text-white shadow-md transition hover:bg-brand-700"
           >
-            Đăng nhập
+            Đăng nhập <span>→</span>
           </button>
 
-          {/* Đăng nhập nhanh (demo) */}
-          <div className="mt-5 border-t border-gray-100 pt-4">
-            <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-              Tài khoản demo (mật khẩu: 123456)
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              <button type="button" onClick={() => dangNhapNhanh('khoavb')} className="rounded-lg border border-gray-200 py-1.5 text-[11px] font-semibold text-gray-700 hover:border-brand-300 hover:text-brand-600">
-                👑 Admin
-              </button>
-              <button type="button" onClick={() => dangNhapNhanh('linhtm')} className="rounded-lg border border-gray-200 py-1.5 text-[11px] font-semibold text-gray-700 hover:border-brand-300 hover:text-brand-600">
-                💼 Sales
-              </button>
-              <button type="button" onClick={() => dangNhapNhanh('hoalt')} className="rounded-lg border border-gray-200 py-1.5 text-[11px] font-semibold text-gray-700 hover:border-brand-300 hover:text-brand-600">
-                📦 Thủ kho
-              </button>
-            </div>
+          <div className="mt-4 text-center">
+            <button type="button" className="text-sm font-semibold text-brand-600">Quên mật khẩu?</button>
           </div>
         </form>
 
-        <p className="mt-6 text-center text-[11px] text-brand-100">
-          © 2026 Vật Liệu Nhà · Bảo mật nội bộ
-        </p>
+        {/* Đăng nhập nhanh (demo) */}
+        <div className="mt-6 border-t border-gray-100 pt-4">
+          <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-wide text-gray-400">Tài khoản demo · mật khẩu 123456</p>
+          <div className="grid grid-cols-3 gap-2">
+            <button type="button" onClick={() => nhanh('khoavb')} className="tap rounded-lg border border-gray-200 py-1.5 text-[11px] font-semibold text-gray-700">👑 Admin</button>
+            <button type="button" onClick={() => nhanh('tuantm')} className="tap rounded-lg border border-gray-200 py-1.5 text-[11px] font-semibold text-gray-700">💼 Sales</button>
+            <button type="button" onClick={() => nhanh('hoalt')} className="tap rounded-lg border border-gray-200 py-1.5 text-[11px] font-semibold text-gray-700">📦 Thủ kho</button>
+          </div>
+        </div>
       </div>
     </div>
   )

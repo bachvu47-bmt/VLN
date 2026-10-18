@@ -1,112 +1,83 @@
 import { useState } from 'react'
 import { DON_HANG, SAN_PHAM } from '../data/mockData'
+import { useToast } from '../context/ToastContext'
 
-const MAU_TRANG_THAI = {
-  Mới: 'bg-blue-100 text-blue-700',
+const MAU_TT = {
+  'Mới': 'bg-blue-100 text-blue-700',
   'Đang xử lý': 'bg-amber-100 text-amber-700',
   'Đã giao': 'bg-green-100 text-green-700',
 }
 
-// Bot AI tạo các bước tư vấn dựa trên sản phẩm trong đơn.
-function goiYTuVan(don) {
-  const buoc = []
-  don.sanPham.forEach((item) => {
-    const sp = SAN_PHAM.find((p) => p.ma === item.ma)
-    if (!sp) return
-    buoc.push({
-      sp,
-      noiDung: `Gửi khách video thi công "${sp.ten}" và nhắc lại định mức ${sp.dinhMuc.giaTri} ${sp.dinhMuc.donVi}.`,
-      canhBao: sp.canhBao[0],
+function buocTuVan(don) {
+  return don.sanPham
+    .map((it) => {
+      const sp = SAN_PHAM.find((p) => p.ma === it.ma)
+      if (!sp) return null
+      return {
+        sp,
+        noiDung: `Gửi khách video thi công "${sp.ten}" và nhắc định mức ${sp.dinhMuc.giaTri} ${sp.dinhMuc.donVi}.`,
+        canhBao: sp.canhBao[0],
+      }
     })
-  })
-  return buoc
+    .filter(Boolean)
 }
 
 function CardDon({ don }) {
   const [mo, setMo] = useState(false)
-  const [daGui, setDaGui] = useState({}) // {ma: 'video'|'tailieu'}
-  const buoc = goiYTuVan(don)
+  const [daGui, setDaGui] = useState({})
+  const toast = useToast()
+  const buoc = buocTuVan(don)
 
-  const gui = (ma, loai) => {
-    setDaGui((d) => ({ ...d, [`${ma}-${loai}`]: 'sending' }))
-    setTimeout(() => setDaGui((d) => ({ ...d, [`${ma}-${loai}`]: 'sent' })), 1200)
-  }
-
-  const nutGui = (ma, loai, label) => {
-    const tt = daGui[`${ma}-${loai}`]
-    return (
-      <button
-        disabled={tt === 'sending' || tt === 'sent'}
-        onClick={() => gui(ma, loai)}
-        className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold transition ${
-          tt === 'sent'
-            ? 'bg-green-100 text-green-700'
-            : tt === 'sending'
-            ? 'bg-gray-100 text-gray-400'
-            : 'bg-brand-600 text-white hover:bg-brand-700'
-        }`}
-      >
-        {tt === 'sent' ? '✓ Đã gửi' : tt === 'sending' ? '⏳ Đang gửi...' : label}
-      </button>
-    )
+  const gui = (ma, loai, nhan) => {
+    setDaGui((d) => ({ ...d, [`${ma}-${loai}`]: true }))
+    toast(`Đã gửi ${nhan} tới khách`, 'success')
   }
 
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-      <button onClick={() => setMo((v) => !v)} className="flex w-full items-center justify-between p-4 text-left">
-        <div className="min-w-0">
+      <button onClick={() => setMo((v) => !v)} className="tap flex w-full items-start gap-3 p-4 text-left">
+        <span className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+        </span>
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="font-mono text-[11px] text-gray-400">{don.maDon}</span>
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${MAU_TRANG_THAI[don.trangThai]}`}>
-              {don.trangThai}
-            </span>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${MAU_TT[don.trangThai]}`}>{don.trangThai}</span>
           </div>
-          <div className="mt-0.5 truncate text-sm font-bold text-gray-900">{don.khach}</div>
-          <div className="text-[11px] text-gray-500">
-            {don.sanPham.map((s) => `${s.ten} ×${s.soLuong}`).join(' · ')}
-          </div>
+          <div className="mt-0.5 truncate text-sm font-bold text-gray-900">{don.khach} <span className="text-[11px] font-normal text-gray-400">(Dữ liệu minh họa)</span></div>
+          <div className="truncate text-[11px] text-gray-500">{don.sanPham.map((s) => `${s.ten} ×${s.soLuong}`).join(' · ')} · {don.ngay}</div>
         </div>
-        <span className={`ml-2 text-gray-300 transition ${mo ? 'rotate-90' : ''}`}>›</span>
+        <span className={`text-gray-300 transition ${mo ? 'rotate-90' : ''}`}>›</span>
       </button>
 
       {mo && (
         <div className="border-t border-gray-100 bg-gray-50 p-4">
-          {/* Phân tích đơn của Bot AI */}
-          <div className="mb-3 rounded-xl border border-brand-100 bg-white p-3">
-            <div className="mb-1 flex items-center gap-2 text-xs font-bold text-brand-600">
-              🤖 Bot AI phân tích đơn hàng
-            </div>
-            <p className="text-xs text-gray-600">{don.goiY}</p>
-            <div className="mt-2 text-[11px] text-gray-400">
-              📞 {don.sdt} · Kênh: {don.kenh} · Ngày: {don.ngay}
-            </div>
-          </div>
-
-          {/* Các bước tư vấn + gửi tài liệu */}
-          <div className="space-y-3">
-            {buoc.map((b) => (
-              <div key={b.sp.ma} className="rounded-xl border border-gray-200 bg-white p-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">{b.sp.icon}</span>
-                  <span className="text-sm font-bold text-gray-800">{b.sp.ten}</span>
+          <div className="mb-3 flex items-center gap-2 text-xs font-bold text-brand-600">🤖 Bot AI phân tích đơn hàng</div>
+          <div className="space-y-2">
+            {buoc.map((b, i) => (
+              <div key={b.sp.ma} className="rounded-xl border border-gray-100 bg-white p-3">
+                <div className="flex items-start gap-2">
+                  <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-brand-600 text-[11px] font-bold text-white">{i + 1}</span>
+                  <div className="flex-1">
+                    <div className="text-sm font-bold text-gray-800">{b.sp.ten}</div>
+                    <p className="mt-0.5 text-xs text-gray-600">{b.noiDung}</p>
+                    {b.canhBao && <p className="mt-1.5 rounded-lg bg-brand-50 px-2 py-1 text-[11px] font-semibold text-brand-700">⛔ Nhắc khách: {b.canhBao}</p>}
+                  </div>
                 </div>
-                <p className="mt-1 text-xs text-gray-600">{b.noiDung}</p>
-                {b.canhBao && (
-                  <p className="mt-2 rounded-lg bg-brand-50 px-2 py-1.5 text-[11px] font-semibold text-brand-700">
-                    ⛔ Nhắc khách: {b.canhBao}
-                  </p>
-                )}
-                <div className="mt-3 flex gap-2">
-                  {nutGui(b.sp.ma, 'video', '▶ Gửi Video')}
-                  {nutGui(b.sp.ma, 'tailieu', '📄 Gửi Tài liệu')}
+                <div className="mt-2.5 flex gap-2">
+                  <button disabled={daGui[`${b.sp.ma}-video`]} onClick={() => gui(b.sp.ma, 'video', 'video')}
+                    className={`tap flex-1 rounded-lg py-2 text-xs font-bold ${daGui[`${b.sp.ma}-video`] ? 'bg-green-100 text-green-700' : 'bg-brand-600 text-white'}`}>
+                    {daGui[`${b.sp.ma}-video`] ? '✓ Đã gửi video' : '▶ Gửi Video'}
+                  </button>
+                  <button disabled={daGui[`${b.sp.ma}-tl`]} onClick={() => gui(b.sp.ma, 'tl', 'tài liệu')}
+                    className={`tap flex-1 rounded-lg border py-2 text-xs font-bold ${daGui[`${b.sp.ma}-tl`] ? 'border-green-200 bg-green-50 text-green-700' : 'border-gray-200 text-gray-700'}`}>
+                    {daGui[`${b.sp.ma}-tl`] ? '✓ Đã gửi' : '📄 Gửi Tài liệu'}
+                  </button>
                 </div>
               </div>
             ))}
           </div>
-
-          <p className="mt-3 text-center text-[10px] text-gray-400">
-            Gửi qua Cổng Server tự động → Zalo / SMS / Email khách hàng
-          </p>
+          <p className="mt-3 text-center text-[10px] text-gray-400">Gửi qua Cổng Server tự động → Zalo / SMS / Email khách hàng</p>
         </div>
       )}
     </div>
@@ -116,24 +87,18 @@ function CardDon({ don }) {
 export default function ConsultScreen() {
   return (
     <div>
-      <h2 className="mb-1 text-xl font-black text-gray-900">Tư vấn & CSKH sau bán</h2>
-      <p className="mb-4 text-xs text-gray-500">
-        Đơn đồng bộ từ <b>KiotViet</b>. Bot AI gợi ý & gửi tài liệu tới khách.
-      </p>
+      <h2 className="text-2xl font-black text-gray-900">Gợi ý tư vấn sau bán</h2>
+      <p className="mb-4 mt-1 text-sm text-gray-500">Đơn đồng bộ từ KiotViet · Bot AI gợi ý & gửi tài liệu</p>
 
-      {/* Thẻ đồng bộ */}
       <div className="mb-4 flex items-center justify-between rounded-xl bg-green-50 px-4 py-3">
         <div className="flex items-center gap-2 text-sm font-semibold text-green-700">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
-          Đã đồng bộ KiotViet
+          <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" /> Đã đồng bộ KiotViet
         </div>
-        <span className="text-xs text-green-600">{DON_HANG.length} đơn mới hôm nay</span>
+        <span className="text-xs text-green-600">{DON_HANG.length} đơn hôm nay</span>
       </div>
 
       <div className="space-y-3">
-        {DON_HANG.map((don) => (
-          <CardDon key={don.id} don={don} />
-        ))}
+        {DON_HANG.map((don) => <CardDon key={don.id} don={don} />)}
       </div>
     </div>
   )

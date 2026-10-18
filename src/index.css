@@ -25,3 +25,34 @@ body {
   background-color: #ffffff;
   color: #1f2937;
 }
+
+/* ---- Hiệu ứng động dùng chung ---- */
+@keyframes vln-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes vln-sheet {
+  from { opacity: 0; transform: translateY(28px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes vln-toast {
+  from { opacity: 0; transform: translateY(-14px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes vln-pop {
+  0% { transform: scale(0.9); opacity: 0; }
+  60% { transform: scale(1.03); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.anim-fade { animation: vln-fade 0.18s ease-out; }
+.anim-sheet { animation: vln-sheet 0.26s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.anim-toast { animation: vln-toast 0.22s ease-out; }
+.anim-pop { animation: vln-pop 0.22s ease-out; }
+
+/* Nút nhấn có phản hồi */
+.tap { transition: transform 0.08s ease; }
+.tap:active { transform: scale(0.97); }
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-fade, .anim-sheet, .anim-toast, .anim-pop { animation: none; }
+}

@@ -1,118 +1,88 @@
 import { useMemo, useState } from 'react'
-import { SAN_PHAM } from '../data/mockData'
+import { DANH_MUC, SAN_PHAM } from '../data/mockData'
 
-function BoTinhVatTu({ sp }) {
-  const [m2, setM2] = useState('')
-  const dm = sp.dinhMuc
-  const dienTich = parseFloat(m2) || 0
-  const soLuong = (dienTich * dm.giaTri).toFixed(2)
-
+function Ico({ d, className = 'h-4 w-4' }) {
   return (
-    <div className="rounded-xl border border-brand-100 bg-brand-50/50 p-4">
-      <div className="mb-2 flex items-center gap-2 text-sm font-bold text-gray-800">
-        🧮 Bộ tính vật tư
-      </div>
-      <p className="mb-3 text-xs text-gray-500">
-        Định mức: <b>{dm.giaTri} {dm.donVi}</b>. {dm.ghiChu}
-      </p>
-      <div className="flex items-end gap-3">
-        <div className="flex-1">
-          <label className="mb-1 block text-[11px] font-semibold text-gray-600">Diện tích (m²)</label>
-          <input
-            type="number"
-            min="0"
-            value={m2}
-            onChange={(e) => setM2(e.target.value)}
-            placeholder="vd: 25"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
-          />
-        </div>
-        <div className="text-2xl text-gray-300">→</div>
-        <div className="flex-1 rounded-lg bg-brand-600 px-3 py-2 text-white">
-          <div className="text-[10px] uppercase tracking-wide text-brand-100">Cần dùng</div>
-          <div className="text-lg font-black leading-tight">
-            {soLuong} <span className="text-xs font-semibold">{dm.donVi.split('/')[0]}</span>
-          </div>
-        </div>
-      </div>
-    </div>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d={d} />
+    </svg>
   )
 }
 
-function Flashcard({ sp, onClose }) {
+const CAT_ICON = {
+  brick: 'M3 7h18v4H3z M3 13h18v4H3z M9 7v4 M15 13v4 M15 7v4 M9 13v4',
+  roller: 'M4 5h11v5H4z M15 7h3a2 2 0 0 1 2 2v2h-6 M11 11v3H9v6h3v-6', // sơn/con lăn
+  sheets: 'M4 7l8-3 8 3-8 3-8-3Z M4 12l8 3 8-3 M4 17l8 3 8-3',
+  block: 'M3 8h18v8H3z M9 8v8 M15 8v8 M3 12h18',
+  paint: 'M4 5h11v5H4z M15 7h3a2 2 0 0 1 2 2v2h-6 M11 11v3H9v6h3v-6',
+}
+
+const BTN_ICON = {
+  doc: 'M8 3h8l3 3v15H5V5a2 2 0 0 1 2-2h1 M9 12h6 M9 16h4',
+  calc: 'M6 3h12v18H6z M9 7h6 M8 11h.01 M12 11h.01 M16 11h.01 M8 15h.01 M12 15h.01 M16 15h4',
+  image: 'M4 5h16v14H4z M8 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z M4 17l5-5 4 4 3-3 4 4',
+}
+
+function ProductCard({ sp, onMo }) {
+  const [size, setSize] = useState(sp.quyCachMacDinh)
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" onClick={onClose}>
-      <div
-        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="mb-4 flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-2xl">{sp.icon}</span>
-            <div>
-              <div className="text-[10px] font-mono text-gray-400">{sp.ma}</div>
-              <h3 className="text-lg font-black leading-tight text-gray-900">{sp.ten}</h3>
-              <div className="text-xs text-gray-500">{sp.hangSX} · {sp.donVi}</div>
-            </div>
-          </div>
-          <button onClick={onClose} className="rounded-full bg-gray-100 px-3 py-1 text-sm font-bold text-gray-500">✕</button>
-        </div>
+    <div className="relative rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+      <button onClick={() => onMo('detail', sp)} className="absolute right-3 top-3 text-gray-300">
+        <Ico d="M9 6l6 6-6 6" className="h-5 w-5" />
+      </button>
 
-        <p className="mb-4 text-sm leading-relaxed text-gray-600">{sp.moTa}</p>
-
-        {/* THẺ CẢNH BÁO ĐỎ */}
-        <div className="mb-4 rounded-xl border-2 border-brand-600 bg-brand-50 p-4">
-          <div className="mb-2 flex items-center gap-2 text-sm font-black uppercase tracking-wide text-brand-700">
-            🚨 Cảnh báo — Chống chỉ định
+      <div className="flex gap-3">
+        {/* Ảnh */}
+        <button onClick={() => onMo('detail', sp)} className="flex-shrink-0 text-center">
+          <div className={`flex h-28 w-24 items-center justify-center rounded-xl border border-gray-100 ${sp.anhBg}`}>
+            <span className="text-5xl">{sp.icon}</span>
           </div>
-          <ul className="space-y-2">
-            {sp.canhBao.map((c, i) => (
-              <li key={i} className="flex gap-2 text-sm font-semibold text-brand-800">
-                <span className="mt-0.5">⛔</span>
-                <span>{c}</span>
+          <div className="mt-1 text-[9px] text-gray-400">Dữ liệu minh họa</div>
+        </button>
+
+        {/* Nội dung */}
+        <div className="min-w-0 flex-1 pr-5">
+          <h3 className="text-lg font-black leading-tight text-gray-900">{sp.ten}</h3>
+          <p className="mt-0.5 text-[13px] leading-snug text-gray-600">{sp.tenNgan}</p>
+          <div className="mt-1.5">
+            <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] text-brand-700">
+              <b>{sp.hang}</b> <span className="text-brand-500">(Dữ liệu minh hoạ)</span>
+            </span>
+          </div>
+          <ul className="mt-2 space-y-0.5">
+            {sp.tinhNang.map((t, i) => (
+              <li key={i} className="flex gap-1.5 text-[12px] text-gray-600">
+                <span className="text-gray-400">•</span>
+                <span>{t}</span>
               </li>
             ))}
           </ul>
         </div>
+      </div>
 
-        {/* TỶ LỆ PHA TRỘN */}
-        <div className="mb-4">
-          <div className="mb-2 text-sm font-bold text-gray-800">⚗️ Tỷ lệ pha trộn chuẩn</div>
-          <div className="space-y-2">
-            {sp.tyLePha.map((t, i) => (
-              <div key={i} className="rounded-xl border border-gray-200 bg-white p-3">
-                <div className="text-xs font-bold text-brand-600">{t.buoc}</div>
-                <div className="mt-0.5 text-sm text-gray-700">{t.noiDung}</div>
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* Nút pill */}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button onClick={() => onMo('detail', sp)} className="tap flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700">
+          <Ico d={BTN_ICON.doc} className="h-4 w-4" /> {sp.nutTaiLieu}
+        </button>
+        <button onClick={() => onMo('detail', sp)} className="tap flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700">
+          <Ico d={BTN_ICON[sp.nutPhu.icon]} className="h-4 w-4" /> {sp.nutPhu.label}
+        </button>
+      </div>
 
-        {/* BỘ TÍNH VẬT TƯ */}
-        <div className="mb-4">
-          <BoTinhVatTu sp={sp} />
-        </div>
-
-        {/* VIDEO & TÀI LIỆU */}
-        <div className="mb-2 text-sm font-bold text-gray-800">🎬 Video & Tài liệu kỹ thuật</div>
-        <div className="space-y-2">
-          <a
-            href={sp.video}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center justify-between rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-brand-700"
-          >
-            <span>▶ Xem video hướng dẫn thi công</span>
-            <span>→</span>
-          </a>
-          {sp.taiLieu.map((tl, i) => (
+      {/* Quy cách */}
+      <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-3">
+        <span className="text-xs text-gray-500">Quy cách phổ biến</span>
+        <div className="flex flex-wrap gap-1.5">
+          {sp.quyCach.map((q) => (
             <button
-              key={i}
-              className="flex w-full items-center justify-between rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 transition hover:border-brand-300 hover:text-brand-600"
+              key={q}
+              onClick={() => setSize(q)}
+              className={`tap rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${
+                size === q ? 'border-brand-500 bg-brand-50 text-brand-600' : 'border-gray-200 text-gray-600'
+              }`}
             >
-              <span>📄 {tl}</span>
-              <span className="text-xs text-gray-400">Tải xuống</span>
+              {q}
             </button>
           ))}
         </div>
@@ -121,73 +91,68 @@ function Flashcard({ sp, onClose }) {
   )
 }
 
-export default function LookupScreen() {
+export default function LookupScreen({ onMo }) {
   const [q, setQ] = useState('')
-  const [chon, setChon] = useState(null)
+  const [cat, setCat] = useState('all')
 
   const ketQua = useMemo(() => {
     const key = q.trim().toLowerCase()
-    if (!key) return SAN_PHAM
-    return SAN_PHAM.filter(
-      (sp) =>
+    return SAN_PHAM.filter((sp) => {
+      const hopCat = cat === 'all' || sp.danhMuc === cat
+      const hopTim =
+        !key ||
         sp.ten.toLowerCase().includes(key) ||
-        sp.ma.toLowerCase().includes(key) ||
-        sp.nhom.toLowerCase().includes(key) ||
-        sp.tags.some((t) => t.toLowerCase().includes(key)),
-    )
-  }, [q])
+        sp.hang.toLowerCase().includes(key) ||
+        sp.tenNgan.toLowerCase().includes(key) ||
+        sp.tags.some((t) => t.toLowerCase().includes(key))
+      return hopCat && hopTim
+    })
+  }, [q, cat])
 
   return (
     <div>
-      <h2 className="mb-1 text-xl font-black text-gray-900">Tra cứu kỹ thuật</h2>
-      <p className="mb-4 text-xs text-gray-500">Chạm vào sản phẩm để mở Flashcard kỹ thuật.</p>
+      <h2 className="text-2xl font-black text-gray-900">Tra cứu sản phẩm</h2>
+      <p className="mb-4 mt-1 text-sm text-gray-500">Tìm thông tin, công dụng, quy cách và hướng dẫn sử dụng</p>
 
-      {/* Ô tìm kiếm */}
-      <div className="sticky top-0 z-10 mb-4 bg-gray-50 pb-2">
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Tìm: SikaLatex, Maxbond, PU, Ramset..."
-            className="w-full rounded-xl border border-gray-300 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
-          />
-        </div>
+      {/* Tìm kiếm */}
+      <div className="mb-4 flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3">
+        <Ico d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Z M21 21l-4.3-4.3" className="h-5 w-5 text-gray-400" />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Tìm tên sản phẩm, thương hiệu, công dụng..."
+          className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
+        />
       </div>
 
-      {/* Danh sách */}
-      <div className="space-y-3">
+      {/* Chips danh mục */}
+      <div className="-mx-4 mb-4 flex gap-2.5 overflow-x-auto px-4 pb-1">
+        {DANH_MUC.map((dm) => {
+          const chon = dm.ma === cat
+          return (
+            <button
+              key={dm.ma}
+              onClick={() => setCat(dm.ma)}
+              className={`tap flex w-[76px] flex-shrink-0 flex-col items-center gap-1.5 rounded-xl border px-1 py-3 text-center transition ${
+                chon ? 'border-brand-400 bg-brand-50 text-brand-600' : 'border-gray-100 bg-gray-50 text-gray-500'
+              }`}
+            >
+              <Ico d={CAT_ICON[dm.icon]} className="h-6 w-6" />
+              <span className="text-[10px] font-semibold leading-tight">{dm.ten}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Danh sách sản phẩm */}
+      <div className="space-y-4">
         {ketQua.map((sp) => (
-          <button
-            key={sp.id}
-            onClick={() => setChon(sp)}
-            className="flex w-full items-center gap-3 rounded-2xl border border-gray-100 bg-white p-3 text-left shadow-sm transition hover:border-brand-200 hover:shadow-md"
-          >
-            <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50 text-2xl">
-              {sp.icon}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="truncate text-sm font-bold text-gray-900">{sp.ten}</span>
-                {sp.canhBao.length > 0 && (
-                  <span className="flex-shrink-0 rounded bg-brand-600 px-1.5 py-0.5 text-[9px] font-bold text-white">
-                    ⚠ {sp.canhBao.length}
-                  </span>
-                )}
-              </div>
-              <div className="truncate text-[11px] text-gray-500">{sp.nhom} · {sp.hangSX}</div>
-            </div>
-            <span className="text-gray-300">›</span>
-          </button>
+          <ProductCard key={sp.id} sp={sp} onMo={onMo} />
         ))}
         {ketQua.length === 0 && (
-          <div className="rounded-xl bg-white p-6 text-center text-sm text-gray-400">
-            Không tìm thấy sản phẩm phù hợp.
-          </div>
+          <div className="rounded-2xl bg-white p-6 text-center text-sm text-gray-400">Không tìm thấy sản phẩm phù hợp.</div>
         )}
       </div>
-
-      {chon && <Flashcard sp={chon} onClose={() => setChon(null)} />}
     </div>
   )
 }
