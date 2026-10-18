@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Vật Liệu Nhà</string>
+    <string name="title_activity_main">Vật Liệu Nhà</string>
+    <string name="package_name">vn.vatlieunha.sales</string>
+    <string name="custom_url_scheme">vn.vatlieunha.sales</string>
+</resources>

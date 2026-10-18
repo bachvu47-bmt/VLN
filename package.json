@@ -1,0 +1,72 @@
+{
+  "name": "vatlieunha-sales",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Ứng dụng bán hàng nội bộ Vật Liệu Nhà — Khôi Anh Home Center",
+  "author": "Khôi Anh Home Center",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "electron": "electron .",
+    "electron:dev": "concurrently -k \"npm:dev\" \"wait-on tcp:127.0.0.1:5173 && electron .\"",
+    "dist:win": "vite build && electron-builder --win --x64",
+    "cap:add:android": "cap add android",
+    "cap:sync": "vite build && cap sync",
+    "cap:open:android": "cap open android",
+    "icons": "node scripts/make-icons.cjs && capacitor-assets generate --android --iconBackgroundColor #ffffff --iconBackgroundColorDark #dc2626 --splashBackgroundColor #dc2626"
+  },
+  "build": {
+    "appId": "vn.vatlieunha.sales",
+    "productName": "VatLieuNha Sales",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "artifactName": "VatLieuNha-Sales-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "khoianh-home",
+        "repo": "vatlieunha-sales"
+      }
+    ]
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.5.3",
+    "electron-updater": "^6.8.9",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.3",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "concurrently": "^10.0.6",
+    "electron": "^44.9.0",
+    "electron-builder": "^26.15.3",
+    "oxlint": "^1.81.0",
+    "png-to-ico": "^3.0.2",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.3.0",
+    "wait-on": "^9.5.1"
+  }
+}

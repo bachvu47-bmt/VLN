@@ -1,0 +1,12 @@
+{
+  "appId": "vn.vatlieunha.sales",
+  "appName": "Vật Liệu Nhà",
+  "webDir": "dist",
+  "backgroundColor": "#dc2626",
+  "android": {
+    "allowMixedContent": true
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
