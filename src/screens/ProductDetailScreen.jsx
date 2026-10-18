@@ -152,14 +152,31 @@ export default function ProductDetailScreen({ sp, onClose }) {
 
           {tab === 'Tài liệu' && (
             <div className="space-y-2">
-              <a href={sp.video} target="_blank" rel="noreferrer" className="tap flex items-center justify-between rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white">
-                <span>▶ Xem video hướng dẫn</span><span>→</span>
-              </a>
-              {sp.taiLieu.map((tl, i) => (
-                <button key={i} onClick={() => toast('Đang tải ' + tl, 'info')} className="tap flex w-full items-center justify-between rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700">
-                  <span>📄 {tl}</span><span className="text-xs text-gray-400">Tải xuống</span>
-                </button>
-              ))}
+              {sp.video && (
+                <a href={sp.video} target="_blank" rel="noreferrer" className="tap flex items-center justify-between rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white">
+                  <span>▶ Xem video hướng dẫn</span><span>→</span>
+                </a>
+              )}
+              {/* taiLieu: chuỗi (dữ liệu minh hoạ) hoặc { ten, url } (PDF từ vatlieunha.vn) */}
+              {sp.taiLieu.map((tl, i) =>
+                typeof tl === 'string' ? (
+                  <button key={i} onClick={() => toast('Đang tải ' + tl, 'info')} className="tap flex w-full items-center justify-between rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700">
+                    <span>📄 {tl}</span><span className="text-xs text-gray-400">Tải xuống</span>
+                  </button>
+                ) : (
+                  <a key={i} href={tl.url} target="_blank" rel="noreferrer" className="tap flex w-full items-center justify-between gap-2 rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700">
+                    <span className="truncate">📄 {tl.ten}</span><span className="flex-shrink-0 text-xs text-gray-400">Mở PDF</span>
+                  </a>
+                ),
+              )}
+              {sp.url && (
+                <a href={sp.url} target="_blank" rel="noreferrer" className="tap flex w-full items-center justify-between rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-700">
+                  <span>🌐 Xem trang sản phẩm trên vatlieunha.vn</span><span>→</span>
+                </a>
+              )}
+              {!sp.video && !sp.taiLieu.length && !sp.url && (
+                <p className="rounded-xl bg-gray-50 p-4 text-center text-xs text-gray-400">Chưa có tài liệu cho sản phẩm này.</p>
+              )}
             </div>
           )}
         </div>

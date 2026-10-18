@@ -4,8 +4,9 @@ import AppHeader from './components/AppHeader'
 import BottomNav from './components/BottomNav'
 import AutoUpdateModal from './components/AutoUpdateModal'
 import { kiemTraGitHub } from './services/githubUpdater'
-import { dongBoWebsite } from './services/webSyncService'
-import { laySanPhamWeb, luuSanPhamWeb } from './data/productStore'
+import { dongBoVaHoc } from './services/webSyncService'
+import { laySanPhamWeb, sanSang as khoSanPhamSanSang } from './data/productStore'
+import { hocNen } from './services/vectorStore'
 import LoginScreen from './screens/LoginScreen'
 import HomeScreen from './screens/HomeScreen'
 import LookupScreen from './screens/LookupScreen'
@@ -54,15 +55,19 @@ export default function App() {
     }
   }, [])
 
-  // Tự động đồng bộ sản phẩm từ vatlieunha.vn 1 lần (khi chưa có cache)
+  // Tự động đồng bộ sản phẩm từ vatlieunha.vn 1 lần (khi chưa có cache) + nạp bộ nhớ Maika;
+  // đã có cache thì chỉ học tiếp các mẩu tri thức còn thiếu vector.
   useEffect(() => {
-    if (user && laySanPhamWeb().length === 0) {
-      dongBoWebsite(() => {})
-        .then((sp) => luuSanPhamWeb(sp))
-        .catch(() => {
+    if (!user) return
+    khoSanPhamSanSang.then(() => {
+      if (laySanPhamWeb().length === 0) {
+        dongBoVaHoc(() => {}).catch(() => {
           /* im lặng — có thể do mạng/CORS; admin bấm nút để thử lại */
         })
-    }
+      } else {
+        hocNen()
+      }
+    })
   }, [user])
 
   if (!user) return <LoginScreen />

@@ -30,6 +30,11 @@ jobs:
         run: npm ci
 
       - name: Build web + đồng bộ Android
+        # Key Gemini nhúng vào bundle lúc build (.env.local không có trên CI)
+        env:
+          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
+          VITE_GEMINI_MODEL: gemini-flash-latest
+          VITE_GEMINI_EMBED_MODEL: gemini-embedding-001
         run: |
           npm run build
           [ -d android ] || npx cap add android
@@ -74,6 +79,13 @@ jobs:
 
       - name: Cài dependencies
         run: npm ci
+
+      - name: Build web (dist/ không có trên git)
+        env:
+          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
+          VITE_GEMINI_MODEL: gemini-flash-latest
+          VITE_GEMINI_EMBED_MODEL: gemini-embedding-001
+        run: npm run build
 
       - name: Build .exe (không tự publish)
         run: npx electron-builder --win --x64 --publish never

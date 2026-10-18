@@ -4,14 +4,49 @@
 //  Trên Android native dùng CapacitorHttp để bỏ qua CORS; web/dev dùng fetch
 //  (có thể bị CORS chặn — khi đó báo lỗi để dùng proxy).
 // ============================================================
+import { luuSanPhamWeb } from '../data/productStore'
+import { dongBoTriThucWeb } from './vectorStore'
+
 const BASE = import.meta.env.VITE_VLN_API || 'https://vatlieunha.vn/wp-json/wc/store/v1'
 
-function stripHtml(s = '') {
+const THUC_THE = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", ndash: '–', mdash: '—', hellip: '…' }
+
+// "Maxbond 722 &#8211; Vữa" → "Maxbond 722 – Vữa" (WooCommerce trả tên/danh mục còn mã HTML)
+function giaiMa(s = '') {
   return s
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&([a-z]+);/gi, (_, t) => THUC_THE[t.toLowerCase()] ?? ' ')
+}
+
+function stripHtml(s = '') {
+  return giaiMa(
+    s
+      .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
+      .replace(/<\/(p|li|h[1-6]|tr|div)>|<br\s*\/?>/gi, '. ') // giữ ranh giới câu cho việc chia đoạn tri thức
+      .replace(/<[^>]*>/g, ' '),
+  )
     .replace(/\s+/g, ' ')
+    .replace(/(\.\s*){2,}/g, '. ')
+    .replace(/^[.\s]+/, '')
     .trim()
+}
+
+// Tài liệu kỹ thuật (PDF: TDS/MSDS/catalogue) nhúng trong mô tả sản phẩm
+function layTaiLieu(html = '') {
+  const urls = [...new Set(html.match(/https?:\/\/[^"'\s<>]+\.pdf/gi) || [])]
+  return urls.map((url) => ({ ten: decodeURIComponent(url.split('/').pop()), url }))
+}
+
+function layVideo(html = '') {
+  const m = html.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/)
+  return m ? `https://www.youtube.com/watch?v=${m[1]}` : ''
+}
+
+// "Định mức: 1,2 – 1,5 kg/m2" → { giaTri: 1.2, donVi: 'kg/m²' }
+function layDinhMuc(text = '') {
+  const m = text.match(/định mức[^.\d]{0,60}?(\d+(?:[.,]\d+)?)\s*(?:[-–~]\s*\d+(?:[.,]\d+)?\s*)?(kg|lít|l|g|ml)\s*\/\s*m(?:2|²)/i)
+  if (!m) return { giaTri: 0, donVi: '—', ghiChu: 'Chưa có định mức — xem TDS sản phẩm.' }
+  return { giaTri: Number(m[1].replace(',', '.')), donVi: `${m[2]}/m²`, ghiChu: 'Trích từ mô tả sản phẩm trên vatlieunha.vn.' }
 }
 
 function mapDanhMuc(cats = []) {
@@ -27,37 +62,44 @@ function chiaDong(s = '') {
 }
 
 function mapSanPham(p) {
-  const cats = p.categories || []
+  const cats = (p.categories || []).map((c) => ({ ...c, name: giaiMa(c.name) }))
+  const htmlDay = `${p.short_description || ''} ${p.description || ''}`
   const nganH = stripHtml(p.short_description || '')
   const moTa = stripHtml(p.description || '')
   const tinhNang = chiaDong(nganH || moTa).slice(0, 3)
+  const hang = giaiMa(p.brands?.[0]?.name || '') || cats[0]?.name || 'Vật Liệu Nhà'
+  // Quy cách lấy từ thuộc tính WooCommerce (vd "Dung Tích = 10 Lít / 5 Lít")
+  const quyCach = (p.attributes || []).flatMap((a) => (a.terms || []).map((t) => giaiMa(t.name))).slice(0, 6)
+  const taiLieu = layTaiLieu(htmlDay)
+  const dv = p.prices?.currency_minor_unit ?? 0
   return {
     id: 'wc-' + p.id,
-    ma: 'WC-' + p.id,
-    ten: p.name,
-    hang: cats[0]?.name || 'Vật Liệu Nhà',
+    ma: p.sku || 'WC-' + p.id,
+    ten: giaiMa(p.name),
+    hang,
     danhMuc: mapDanhMuc(cats),
     icon: '🧱',
     anh: p.images?.[0]?.src || p.images?.[0]?.thumbnail || '',
+    anhPhu: (p.images || []).slice(1, 6).map((i) => i.src),
     anhBg: 'bg-gray-50',
     tenNgan: (nganH || moTa).slice(0, 130),
     tinhNang: tinhNang.length ? tinhNang : ['Xem mô tả chi tiết'],
-    quyCach: [],
-    quyCachMacDinh: '',
-    nutTaiLieu: 'Chi tiết sản phẩm',
+    quyCach,
+    quyCachMacDinh: quyCach[0] || '',
+    nutTaiLieu: taiLieu.length ? `Tài liệu (${taiLieu.length})` : 'Chi tiết sản phẩm',
     nutPhu: { label: 'Danh mục', icon: 'image' },
-    hangSX: cats[0]?.name || 'Vật Liệu Nhà',
+    hangSX: hang,
     donVi: '',
     nhom: cats.map((c) => c.name).join(', ') || 'Sản phẩm website',
     moTa: moTa || nganH || p.name,
     mucDich: chiaDong(nganH || moTa).slice(0, 4),
     canhBao: ['Tham khảo TDS / hướng dẫn nhà sản xuất trước khi thi công.'],
     tyLePha: [{ buoc: 'Pha trộn & thi công', noiDung: 'Theo hướng dẫn trên bao bì & TDS sản phẩm.' }],
-    dinhMuc: { giaTri: 0, donVi: '—', ghiChu: 'Chưa có định mức — xem TDS sản phẩm.' },
-    video: '',
-    taiLieu: [],
-    tags: cats.map((c) => (c.name || '').toLowerCase()),
-    gia: p.prices?.price ? Number(p.prices.price) : null,
+    dinhMuc: layDinhMuc(moTa),
+    video: layVideo(htmlDay),
+    taiLieu,
+    tags: [...cats.map((c) => (c.name || '').toLowerCase()), ...(p.tags || []).map((t) => giaiMa(t.name || '').toLowerCase())],
+    gia: p.prices?.price ? Number(p.prices.price) / 10 ** dv : null,
     url: p.permalink || '',
     tuWeb: true,
   }
@@ -129,4 +171,13 @@ export async function dongBoWebsite(onProgress) {
   }
   if (ketQua.length === 0) throw new Error('Không lấy được sản phẩm nào từ website')
   return ketQua
+}
+
+// Đồng bộ website → lưu Flashcard (màn Tra cứu) → nạp tri thức vào bộ nhớ vector
+// của Maika (học nền). Trả về { soSanPham, tongDoan, doanMoi, doanXoa }.
+export async function dongBoVaHoc(onProgress) {
+  const sp = await dongBoWebsite(onProgress)
+  await luuSanPhamWeb(sp)
+  const tt = await dongBoTriThucWeb(sp)
+  return { soSanPham: sp.length, ...tt }
 }

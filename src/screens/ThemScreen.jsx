@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { VAI_TRO } from '../data/mockData'
 import { PHIEN_BAN_HIEN_TAI } from '../data/appInfo'
 import { useToast } from '../context/ToastContext'
-import { dongBoWebsite } from '../services/webSyncService'
-import { luuSanPhamWeb, laySanPhamWeb } from '../data/productStore'
+import { dongBoVaHoc } from '../services/webSyncService'
+import { laySanPhamWeb } from '../data/productStore'
+import { useBoNhoMaika } from '../hooks/useBoNhoMaika'
 import ChangePasswordModal from '../components/ChangePasswordModal'
 
 function vietTat(t = '') {
@@ -22,16 +23,16 @@ export default function ThemScreen({ user, onMo, onCapNhat, onLogout }) {
   const [moDoiMK, setMoDoiMK] = useState(false)
   const [dangDongBo, setDangDongBo] = useState(false)
   const [soWeb, setSoWeb] = useState(laySanPhamWeb().length)
+  const { tk } = useBoNhoMaika()
 
   const dongBo = async () => {
     if (dangDongBo) return
     setDangDongBo(true)
     toast('Đang đồng bộ sản phẩm từ vatlieunha.vn...', 'info')
     try {
-      const sp = await dongBoWebsite(() => {})
-      luuSanPhamWeb(sp)
-      setSoWeb(sp.length)
-      toast(`Đã đồng bộ ${sp.length} sản phẩm vào Tra cứu`, 'success')
+      const kq = await dongBoVaHoc(() => {})
+      setSoWeb(kq.soSanPham)
+      toast(`Đã đồng bộ ${kq.soSanPham} sản phẩm vào Tra cứu · Maika đang học ${kq.doanMoi} đoạn tri thức mới`, 'success')
     } catch (e) {
       toast('Đồng bộ lỗi: ' + (e.message || e) + ' (có thể do CORS trên web — thử trên bản .apk)', 'error')
     } finally {
@@ -41,8 +42,8 @@ export default function ThemScreen({ user, onMo, onCapNhat, onLogout }) {
 
   const MENU = [
     { ten: 'Trợ lý Maika', phu: 'Hỏi đáp kỹ thuật & tư vấn sản phẩm', d: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10Z M8 9h8 M8 12h5', on: () => onMo('tuvanai') },
-    admin && { ten: 'Cổng Maika — Nạp dữ liệu', phu: 'Tải ảnh/video/PDF, Maika phân loại', d: 'M12 3v3 M9 6h6a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3Z M9.5 12h.01 M14.5 12h.01 M9 16h6', on: () => onMo('ingest') },
-    admin && { ten: 'Duyệt kiến thức', phu: 'Xét duyệt đề xuất cập nhật kỹ thuật', d: 'M9 12l2 2 4-4 M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4Z', on: () => onMo('duyet') },
+    admin && { ten: 'AI Admin — Dạy Maika', phu: `Nạp tài liệu, bộ nhớ vector: ${tk.tong} mẩu tri thức`, d: 'M12 3v3 M9 6h6a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3Z M9.5 12h.01 M14.5 12h.01 M9 16h6', on: () => onMo('ingest') },
+    admin && { ten: 'Duyệt kiến thức', phu: tk.choDuyet ? `${tk.choDuyet} đề xuất đính chính đang chờ duyệt` : 'Xét duyệt đề xuất cập nhật kỹ thuật', badge: tk.choDuyet, d: 'M9 12l2 2 4-4 M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4Z', on: () => onMo('duyet') },
     admin && { ten: 'Nhân sự & Tài khoản', phu: 'Quản lý người dùng, phiên đăng nhập', d: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z M2.5 20a6.5 6.5 0 0 1 13 0 M17 11a3 3 0 1 0 0-6 M21.5 20a5.5 5.5 0 0 0-5-5.5', on: () => onMo('users') },
     { ten: 'Đổi mật khẩu', phu: 'Cập nhật mật khẩu đăng nhập', d: 'M6 10V8a6 6 0 1 1 12 0v2 M5 10h14v10H5z M12 14v2', on: () => setMoDoiMK(true) },
     { ten: 'Cập nhật phần mềm', phu: `Phiên bản hiện tại v${PHIEN_BAN_HIEN_TAI}`, d: 'M21 12a9 9 0 1 1-3-6.7 M21 3v6h-6', on: onCapNhat },
@@ -71,6 +72,7 @@ export default function ThemScreen({ user, onMo, onCapNhat, onLogout }) {
               <div className="truncate text-sm font-bold text-gray-900">{m.ten}</div>
               <div className="truncate text-[11px] text-gray-500">{m.phu}</div>
             </div>
+            {m.badge > 0 && <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-bold text-white">{m.badge}</span>}
             <span className="text-gray-300">›</span>
           </button>
         ))}
@@ -81,7 +83,7 @@ export default function ThemScreen({ user, onMo, onCapNhat, onLogout }) {
         <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4">
           <div className="mb-1 flex items-center gap-2 text-sm font-black text-gray-900">🔄 Đồng bộ dải sản phẩm</div>
           <p className="mb-3 text-xs text-gray-600">
-            Lấy danh mục, hình ảnh & sản phẩm mới nhất từ <b>vatlieunha.vn</b> vào danh mục Tra cứu (Flashcard).
+            Lấy danh mục, hình ảnh, tài liệu kỹ thuật & sản phẩm mới nhất từ <b>vatlieunha.vn</b> vào Tra cứu (Flashcard) và nạp vào bộ nhớ Maika.
             {soWeb > 0 && <span className="font-semibold text-brand-700"> Đã có {soWeb} sản phẩm web.</span>}
           </p>
           <button onClick={dongBo} disabled={dangDongBo}

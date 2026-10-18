@@ -3,7 +3,7 @@
 // ============================================================
 
 // Phiên bản hiện đang chạy trên thiết bị
-export const PHIEN_BAN_HIEN_TAI = '1.1.7'
+export const PHIEN_BAN_HIEN_TAI = '1.1.8'
 
 // ---- Cấu hình GitHub Releases (nguồn cập nhật OTA) ----
 // ⚠️ Đổi owner/repo thành repo GitHub thật của bạn.
@@ -18,16 +18,16 @@ export const GITHUB_API_LATEST = `https://api.github.com/repos/${GITHUB_REPO.own
 // Dữ liệu "server nội bộ" trả về khi kiểm tra cập nhật (mock).
 // Trong thực tế, dữ liệu này đến từ GitHub Releases API ở trên.
 export const BAN_CAP_NHAT_SERVER = {
-  phienBan: '1.1.0',
-  ngayPhatHanh: '2026-10-18',
+  phienBan: '1.1.8',
+  ngayPhatHanh: '2026-10-19',
   batBuoc: false, // true => chặn dùng app cho tới khi cập nhật
-  tieuDe: 'Giao diện mới + Trợ lý chuyên gia Maika (Claude AI)',
+  tieuDe: 'Maika tự học (bộ nhớ vector) + Gemini mới + tài liệu từ website',
   kichThuocMB: { exe: 108, apk: 3.3 },
   changelog: [
-    { loai: 'moi', noiDung: 'Tái thiết kế toàn bộ giao diện theo bộ mẫu mới (Hôm nay, Tra cứu, Khách, Sau bán, Thêm).' },
-    { loai: 'moi', noiDung: 'Maika nâng cấp thành trợ lý chuyên gia xây dựng/vật liệu/nội thất, kết nối Claude AI.' },
-    { loai: 'caitien', noiDung: 'Auto-update: tự tải bản mới ở nền và cài khi khởi động lại.' },
-    { loai: 'sualoi', noiDung: 'Sửa lỗi nút cập nhật trên bản PC không tải được bản mới.' },
+    { loai: 'moi', noiDung: 'Maika tự học: Admin sửa sai ngay trong khung chat, Maika áp dụng tức thì; nhân viên báo sai → Admin duyệt.' },
+    { loai: 'moi', noiDung: 'Cổng AI Admin: Gemini phân tích PDF/ảnh/ghi chú thành tri thức, duyệt rồi nạp vào bộ nhớ Maika.' },
+    { loai: 'caitien', noiDung: 'Đồng bộ vatlieunha.vn lấy thêm quy cách, thương hiệu, định mức, tài liệu PDF; Maika học toàn bộ mô tả kỹ thuật.' },
+    { loai: 'sualoi', noiDung: 'Sửa lỗi Maika không trả lời do Google gỡ model gemini-2.0-flash (chuyển sang gemini-flash-latest).' },
   ],
   taiVe: {
     exe: 'https://github.com/bachvu47-bmt/VLN/releases/latest',

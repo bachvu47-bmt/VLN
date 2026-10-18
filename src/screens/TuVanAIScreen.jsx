@@ -1,9 +1,68 @@
 import { useEffect, useRef, useState } from 'react'
 import ScreenShell from '../components/ScreenShell'
+import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import { MAIKA, MAIKA_GOI_Y, maikaChao } from '../services/maika'
 import { maikaChatAI, maikaCheDo } from '../services/maikaAI'
+import { adminSuaSai, deXuatSuaSai } from '../services/vectorStore'
 
 let _mid = 0
+
+const NHAN_NGUON = { sua_sai: 'Đính chính', tai_lieu: 'Tài liệu', web: 'Website' }
+
+// HITL: Admin sửa sai → Maika học ngay; nhân viên báo sai → chờ Admin duyệt
+function SuaSai({ cauHoi, traLoiSai, onXong }) {
+  const { user, laAdmin } = useAuth()
+  const toast = useToast()
+  const [mo, setMo] = useState(false)
+  const [dung, setDung] = useState('')
+  const [dangLuu, setDangLuu] = useState(false)
+
+  const luu = async () => {
+    if (!dung.trim() || dangLuu) return
+    setDangLuu(true)
+    const thamSo = { cauHoi, traLoiSai, traLoiDung: dung.trim(), nguoi: user.hoTen }
+    try {
+      if (laAdmin) {
+        const kq = await adminSuaSai(thamSo)
+        toast(kq.daHoc ? 'Maika đã học đính chính này ✓' : 'Đã lưu — Maika sẽ học khi có mạng', 'success')
+      } else {
+        await deXuatSuaSai(thamSo)
+        toast('Đã gửi đề xuất đính chính cho Admin duyệt', 'success')
+      }
+      setMo(false)
+      onXong()
+    } catch (e) {
+      toast('Lưu lỗi: ' + (e.message || e), 'error')
+    } finally {
+      setDangLuu(false)
+    }
+  }
+
+  if (!mo) {
+    return (
+      <button onClick={() => setMo(true)} className="tap mt-1 text-[11px] font-semibold text-gray-400 hover:text-brand-600">
+        {laAdmin ? '✏️ Sửa sai để Maika học' : '👎 Báo Maika trả lời sai'}
+      </button>
+    )
+  }
+  return (
+    <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-2.5">
+      <div className="mb-1 text-[11px] font-bold text-amber-800">
+        {laAdmin ? 'Câu trả lời ĐÚNG (Maika sẽ học ngay):' : 'Câu trả lời đúng theo bạn (gửi Admin duyệt):'}
+      </div>
+      <textarea value={dung} onChange={(e) => setDung(e.target.value)} rows={3} autoFocus
+        placeholder="vd: Không thi công PU khi độ ẩm sàn > 8%; phải dùng lót kháng ẩm..."
+        className="w-full resize-none rounded-lg border border-amber-200 bg-white px-2.5 py-2 text-xs outline-none focus:border-brand-500" />
+      <div className="mt-1.5 flex gap-2">
+        <button onClick={() => setMo(false)} className="tap rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600">Huỷ</button>
+        <button onClick={luu} disabled={!dung.trim() || dangLuu} className="tap flex-1 rounded-lg bg-brand-600 py-1.5 text-xs font-bold text-white disabled:opacity-50">
+          {dangLuu ? 'Đang lưu…' : laAdmin ? 'Lưu & dạy Maika' : 'Gửi đề xuất'}
+        </button>
+      </div>
+    </div>
+  )
+}
 
 function MaikaAvatar({ className = 'h-8 w-8 text-xs' }) {
   return (
@@ -76,7 +135,7 @@ export default function TuVanAIScreen({ onClose, onMo }) {
   return (
     <ScreenShell title={`${MAIKA.ten} · ${MAIKA.vaiTro}`} onClose={onClose} right={right} footer={footer}>
       <div className="space-y-3">
-        {msgs.map((m) =>
+        {msgs.map((m, idx) =>
           m.tu === 'user' ? (
             <div key={m.id} className="flex justify-end">
               <div className="anim-sheet max-w-[80%] whitespace-pre-line rounded-2xl rounded-tr-sm bg-brand-600 px-3.5 py-2.5 text-sm text-white">{m.text}</div>
@@ -94,6 +153,21 @@ export default function TuVanAIScreen({ onClose, onMo }) {
                     </button>
                   )}
                 </div>
+                {m.thamKhao?.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {m.thamKhao.slice(0, 4).map((t) => (
+                      <span key={t.id} title={t.tieuDe}
+                        className={`max-w-[180px] truncate rounded-full px-2 py-0.5 text-[10px] font-semibold ${t.loai === 'sua_sai' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-500'}`}>
+                        📚 {NHAN_NGUON[t.loai]}: {t.tieuDe}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {idx > 0 && !m.loi && !m.daSua && msgs[idx - 1]?.tu === 'user' && (
+                  <SuaSai cauHoi={msgs[idx - 1].text} traLoiSai={m.text}
+                    onXong={() => setMsgs((ds) => ds.map((x) => (x.id === m.id ? { ...x, daSua: true } : x)))} />
+                )}
+                {m.daSua && <div className="mt-1 text-[11px] font-semibold text-green-600">✓ Đã ghi nhận đính chính</div>}
               </div>
             </div>
           ),

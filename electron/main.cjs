@@ -1,5 +1,5 @@
 // Electron main process — đóng gói ứng dụng thành .exe cho PC
-const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron')
+const { app, BrowserWindow, Menu, ipcMain, dialog, shell } = require('electron')
 const path = require('path')
 const { autoUpdater } = require('electron-updater')
 
@@ -111,6 +111,12 @@ function createWindow() {
     console.error('[DID-FAIL-LOAD]', code, desc, url),
   )
   win.webContents.on('render-process-gone', (_e, d) => console.error('[RENDER-GONE]', JSON.stringify(d)))
+
+  // Link ngoài (PDF tài liệu kỹ thuật, trang SP vatlieunha.vn, video) → mở bằng trình duyệt mặc định
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//.test(url)) shell.openExternal(url)
+    return { action: 'deny' }
+  })
   win.webContents.on('console-message', (_e, level, message, line, source) =>
     console.log(`[RENDERER:${level}] ${message} (${source}:${line})`),
   )
