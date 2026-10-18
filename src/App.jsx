@@ -4,6 +4,8 @@ import AppHeader from './components/AppHeader'
 import BottomNav from './components/BottomNav'
 import AutoUpdateModal from './components/AutoUpdateModal'
 import { kiemTraGitHub } from './services/githubUpdater'
+import { dongBoWebsite } from './services/webSyncService'
+import { laySanPhamWeb, luuSanPhamWeb } from './data/productStore'
 import LoginScreen from './screens/LoginScreen'
 import HomeScreen from './screens/HomeScreen'
 import LookupScreen from './screens/LookupScreen'
@@ -51,6 +53,17 @@ export default function App() {
       clearInterval(id)
     }
   }, [])
+
+  // Tự động đồng bộ sản phẩm từ vatlieunha.vn 1 lần (khi chưa có cache)
+  useEffect(() => {
+    if (user && laySanPhamWeb().length === 0) {
+      dongBoWebsite(() => {})
+        .then((sp) => luuSanPhamWeb(sp))
+        .catch(() => {
+          /* im lặng — có thể do mạng/CORS; admin bấm nút để thử lại */
+        })
+    }
+  }, [user])
 
   if (!user) return <LoginScreen />
 

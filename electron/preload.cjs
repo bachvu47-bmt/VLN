@@ -17,4 +17,7 @@ contextBridge.exposeInMainWorld('desktop', {
     },
     install: () => ipcRenderer.invoke('update:install'),
   },
+
+  // Fetch qua main process (không dính CORS) — đồng bộ sản phẩm từ website
+  webFetch: (url) => ipcRenderer.invoke('web:fetch', url),
 })
