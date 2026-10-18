@@ -55,7 +55,7 @@ export default function App() {
             <img src={logoBlock} alt="Vật Liệu Nhà" className="h-full w-full object-contain" />
           </span>
           <div className="leading-tight">
-            <div className="text-sm font-bold">Khôi Anh Home Center</div>
+            <div className="text-sm font-bold">Vật Liệu Nhà</div>
             <div className="text-[10px] text-brand-100">Hệ thống bán hàng nội bộ</div>
           </div>
         </div>

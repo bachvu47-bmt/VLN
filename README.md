@@ -1,4 +1,4 @@
-# Vật Liệu Nhà — Khôi Anh Home Center (Sales App)
+# Vật Liệu Nhà — Ứng dụng bán hàng nội bộ
 
 Ứng dụng bán hàng **nội bộ** cho cửa hàng vật liệu xây dựng, xây bằng **React + Vite + Tailwind CSS v4**.
 Tone màu thương hiệu: **Đỏ `#DC2626` + Trắng `#FFFFFF`**. Giao diện tối ưu dạng **mobile app**, đóng gói được cho **PC (.exe)** qua Electron và **Android (.apk)** qua Capacitor.
@@ -84,4 +84,4 @@ capacitor.config.json  # Cấu hình đóng gói Android
 
 > ⚠️ **Lưu ý:** Dữ liệu AI, KiotViet, server OTA hiện là **mock** phục vụ demo. Khi triển khai thật cần thay bằng API/endpoint thực tế.
 
-© 2026 Khôi Anh Home Center.
+© 2026 Vật Liệu Nhà.

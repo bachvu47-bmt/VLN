@@ -2,8 +2,8 @@
   "name": "vatlieunha-sales",
   "private": true,
   "version": "1.0.0",
-  "description": "Ứng dụng bán hàng nội bộ Vật Liệu Nhà — Khôi Anh Home Center",
-  "author": "Khôi Anh Home Center",
+  "description": "Ứng dụng bán hàng nội bộ thương hiệu Vật Liệu Nhà",
+  "author": "Vật Liệu Nhà",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {

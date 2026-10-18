@@ -30,8 +30,8 @@ export default function LoginScreen() {
           <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-2xl bg-white p-3 shadow-lg">
             <img src={logoBlock} alt="Vật Liệu Nhà" className="h-full w-full object-contain" />
           </div>
-          <h1 className="mt-4 text-2xl font-black tracking-tight">Khôi Anh Home Center</h1>
-          <p className="text-sm text-brand-100">Vật Liệu Nhà · Hệ thống bán hàng nội bộ</p>
+          <h1 className="mt-4 text-2xl font-black tracking-tight">Vật Liệu Nhà</h1>
+          <p className="text-sm text-brand-100">Hệ thống bán hàng nội bộ</p>
         </div>
 
         {/* Form */}
@@ -102,7 +102,7 @@ export default function LoginScreen() {
         </form>
 
         <p className="mt-6 text-center text-[11px] text-brand-100">
-          © 2026 Khôi Anh Home Center · Bảo mật nội bộ
+          © 2026 Vật Liệu Nhà · Bảo mật nội bộ
         </p>
       </div>
     </div>

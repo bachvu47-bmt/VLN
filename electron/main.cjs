@@ -52,7 +52,7 @@ function createWindow() {
     height: 860,
     minWidth: 380,
     minHeight: 640,
-    title: 'Khôi Anh Home Center — Vật Liệu Nhà',
+    title: 'Vật Liệu Nhà — Hệ thống bán hàng nội bộ',
     backgroundColor: '#dc2626',
     autoHideMenuBar: true,
     webPreferences: {

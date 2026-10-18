@@ -1,5 +1,5 @@
 // ============================================================
-//  DỮ LIỆU MẪU — Khôi Anh Home Center (Vật Liệu Nhà)
+//  DỮ LIỆU MẪU — Vật Liệu Nhà (ứng dụng bán hàng nội bộ)
 //  Lưu ý: Đây là mock data phục vụ demo ứng dụng nội bộ.
 // ============================================================
 
