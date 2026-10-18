@@ -5,6 +5,11 @@ const { autoUpdater } = require('electron-updater')
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173'
 
+// Tắt tăng tốc phần cứng — tránh màn hình trống/1 màu trên máy có driver GPU lỗi,
+// máy ảo, hoặc chạy qua Remote Desktop (buộc dùng software rendering ổn định hơn).
+app.disableHardwareAcceleration()
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
+
 // ---- Auto Update (electron-updater) ----
 // Tự tải bản mới ở nền; cài khi thoát app (hoặc khi người dùng bấm khởi động lại).
 autoUpdater.autoDownload = true
@@ -85,7 +90,7 @@ function createWindow() {
     minWidth: 380,
     minHeight: 640,
     title: 'Vật Liệu Nhà — Hệ thống bán hàng nội bộ',
-    backgroundColor: '#dc2626',
+    backgroundColor: '#ffffff',
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -94,7 +99,16 @@ function createWindow() {
     },
   })
 
-  if (!app.isPackaged) {
+  // Log chẩn đoán lỗi nạp renderer (giúp bắt màn hình trống)
+  win.webContents.on('did-fail-load', (_e, code, desc, url) =>
+    console.error('[DID-FAIL-LOAD]', code, desc, url),
+  )
+  win.webContents.on('render-process-gone', (_e, d) => console.error('[RENDER-GONE]', JSON.stringify(d)))
+  win.webContents.on('console-message', (_e, level, message, line, source) =>
+    console.log(`[RENDERER:${level}] ${message} (${source}:${line})`),
+  )
+
+  if (!app.isPackaged && !process.env.MAIKA_FORCE_FILE) {
     // Chế độ phát triển: nạp từ Vite dev server
     win.loadURL(DEV_URL)
     win.webContents.openDevTools({ mode: 'detach' })
