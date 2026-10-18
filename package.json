@@ -1,9 +1,9 @@
-﻿{
+{
   "name": "vatlieunha-sales",
   "private": true,
   "version": "1.1.1",
-  "description": "á»¨ng dá»¥ng bÃ¡n hÃ ng ná»™i bá»™ thÆ°Æ¡ng hiá»‡u Váº­t Liá»‡u NhÃ ",
-  "author": "Váº­t Liá»‡u NhÃ ",
+  "description": "Ứng dụng bán hàng nội bộ thương hiệu Vật Liệu Nhà",
+  "author": "Vật Liệu Nhà",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
