@@ -15,7 +15,8 @@ export default function ThemScreen({ user, onMo, onCapNhat, onLogout }) {
   const admin = user.vaiTro === 'admin'
 
   const MENU = [
-    admin && { ten: 'Cổng AI — Nạp dữ liệu', phu: 'Tải ảnh/video/PDF, Bot AI phân loại', d: 'M12 3v3 M9 6h6a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3Z M9.5 12h.01 M14.5 12h.01 M9 16h6', on: () => onMo('ingest') },
+    { ten: 'Trợ lý Maika', phu: 'Hỏi đáp kỹ thuật & tư vấn sản phẩm', d: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10Z M8 9h8 M8 12h5', on: () => onMo('tuvanai') },
+    admin && { ten: 'Cổng Maika — Nạp dữ liệu', phu: 'Tải ảnh/video/PDF, Maika phân loại', d: 'M12 3v3 M9 6h6a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3Z M9.5 12h.01 M14.5 12h.01 M9 16h6', on: () => onMo('ingest') },
     admin && { ten: 'Duyệt kiến thức', phu: 'Xét duyệt đề xuất cập nhật kỹ thuật', d: 'M9 12l2 2 4-4 M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4Z', on: () => onMo('duyet') },
     admin && { ten: 'Nhân sự & Tài khoản', phu: 'Quản lý người dùng, phiên đăng nhập', d: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z M2.5 20a6.5 6.5 0 0 1 13 0 M17 11a3 3 0 1 0 0-6 M21.5 20a5.5 5.5 0 0 0-5-5.5', on: () => onMo('users') },
     { ten: 'Cập nhật phần mềm', phu: `Phiên bản hiện tại v${PHIEN_BAN_HIEN_TAI}`, d: 'M21 12a9 9 0 1 1-3-6.7 M21 3v6h-6', on: onCapNhat },

@@ -52,7 +52,7 @@ export default function HomeScreen({ onTab, onMo }) {
       <div className="rounded-2xl border border-brand-100 bg-brand-50 p-4">
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="rounded-md bg-brand-600 px-1.5 py-0.5 text-[10px] font-black text-white">AI</span>
+            <span className="rounded-md bg-brand-600 px-1.5 py-0.5 text-[10px] font-black text-white">Maika</span>
             <span className="text-sm font-black text-gray-900">Đơn hoàn thành — cần tư vấn</span>
           </div>
           <span className="h-2.5 w-2.5 rounded-full bg-brand-600" />

@@ -21,10 +21,10 @@ export const BAN_CAP_NHAT_SERVER = {
   phienBan: '1.1.0',
   ngayPhatHanh: '2026-10-18',
   batBuoc: false, // true => chặn dùng app cho tới khi cập nhật
-  tieuDe: 'Bổ sung Bot AI quét TikTok / YouTube',
+  tieuDe: 'Nâng cấp trợ lý Maika + quét TikTok / YouTube',
   kichThuocMB: { exe: 82.3, apk: 24.6 },
   changelog: [
-    { loai: 'moi', noiDung: 'Bot AI tự quét video kỹ thuật trên TikTok & YouTube, gợi ý gắn vào mã sản phẩm.' },
+    { loai: 'moi', noiDung: 'Trợ lý Maika tự quét video kỹ thuật trên TikTok & YouTube, gợi ý gắn vào mã sản phẩm.' },
     { loai: 'moi', noiDung: 'Thêm Thẻ Cảnh báo Đỏ động cho dòng chống thấm PU khi độ ẩm sàn vượt ngưỡng.' },
     { loai: 'caitien', noiDung: 'Đồng bộ đơn hàng KiotViet nhanh hơn ~2× và ổn định hơn.' },
     { loai: 'sualoi', noiDung: 'Sửa lỗi đăng xuất từ xa không hiệu lực trên iPad.' },

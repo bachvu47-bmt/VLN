@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { DON_HANG, SAN_PHAM } from '../data/mockData'
+import { DON_HANG } from '../data/mockData'
+import { maikaPhanTichDon } from '../services/maika'
 import { useToast } from '../context/ToastContext'
 
 const MAU_TT = {
@@ -8,25 +9,11 @@ const MAU_TT = {
   'Đã giao': 'bg-green-100 text-green-700',
 }
 
-function buocTuVan(don) {
-  return don.sanPham
-    .map((it) => {
-      const sp = SAN_PHAM.find((p) => p.ma === it.ma)
-      if (!sp) return null
-      return {
-        sp,
-        noiDung: `Gửi khách video thi công "${sp.ten}" và nhắc định mức ${sp.dinhMuc.giaTri} ${sp.dinhMuc.donVi}.`,
-        canhBao: sp.canhBao[0],
-      }
-    })
-    .filter(Boolean)
-}
-
 function CardDon({ don }) {
   const [mo, setMo] = useState(false)
   const [daGui, setDaGui] = useState({})
   const toast = useToast()
-  const buoc = buocTuVan(don)
+  const buoc = maikaPhanTichDon(don)
 
   const gui = (ma, loai, nhan) => {
     setDaGui((d) => ({ ...d, [`${ma}-${loai}`]: true }))
@@ -52,7 +39,7 @@ function CardDon({ don }) {
 
       {mo && (
         <div className="border-t border-gray-100 bg-gray-50 p-4">
-          <div className="mb-3 flex items-center gap-2 text-xs font-bold text-brand-600">🤖 Bot AI phân tích đơn hàng</div>
+          <div className="mb-3 flex items-center gap-2 text-xs font-bold text-brand-600"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-[10px] font-black text-white">M</span> Maika phân tích đơn hàng</div>
           <div className="space-y-2">
             {buoc.map((b, i) => (
               <div key={b.sp.ma} className="rounded-xl border border-gray-100 bg-white p-3">
@@ -88,7 +75,7 @@ export default function ConsultScreen({ onMo }) {
   return (
     <div>
       <h2 className="text-2xl font-black text-gray-900">Gợi ý tư vấn sau bán</h2>
-      <p className="mb-4 mt-1 text-sm text-gray-500">Đơn đồng bộ từ KiotViet · Bot AI gợi ý & gửi tài liệu</p>
+      <p className="mb-4 mt-1 text-sm text-gray-500">Đơn đồng bộ từ KiotViet · Maika gợi ý & gửi tài liệu</p>
 
       <div className="mb-3 flex items-center justify-between rounded-xl bg-green-50 px-4 py-3">
         <div className="flex items-center gap-2 text-sm font-semibold text-green-700">

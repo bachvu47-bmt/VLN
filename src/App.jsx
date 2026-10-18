@@ -81,7 +81,7 @@ export default function App() {
 
       {/* Overlays toàn màn hình */}
       {overlay?.type === 'detail' && <ProductDetailScreen sp={overlay.data} onClose={dong} />}
-      {overlay?.type === 'tuvanai' && <TuVanAIScreen onClose={dong} />}
+      {overlay?.type === 'tuvanai' && <TuVanAIScreen onClose={dong} onMo={mo} />}
       {overlay?.type === 'tinhvattu' && <TinhVatTuScreen sp={overlay.data} onClose={dong} />}
       {overlay?.type === 'guitailieu' && <GuiTaiLieuScreen onClose={dong} />}
       {overlay?.type === 'ingest' && <IngestionScreen onClose={dong} />}

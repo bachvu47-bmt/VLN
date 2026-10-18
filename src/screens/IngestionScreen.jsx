@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
-import { SAN_PHAM } from '../data/mockData'
 import ScreenShell from '../components/ScreenShell'
+import { maikaPhanLoai } from '../services/maika'
 import { useToast } from '../context/ToastContext'
 
 const LOAI = [
@@ -9,17 +9,6 @@ const LOAI = [
   { id: 'pdf', nhan: 'Tải PDF', meta: 'PDF', icon: '📄', accept: 'application/pdf' },
   { id: 'audio', nhan: 'Ghi âm', meta: '5s – 5 phút', icon: '🎙️', accept: 'audio/*' },
 ]
-
-function phanTich(text, tenFile) {
-  const key = (text + ' ' + (tenFile || '')).toLowerCase()
-  const sp = SAN_PHAM.find((p) => p.tags.some((t) => key.includes(t.toLowerCase()))) || SAN_PHAM[6]
-  const tags = []
-  if (/chống thấm|thấm/.test(key)) tags.push('Chống thấm')
-  if (/pu|polyurethane/.test(key)) tags.push('PU')
-  if (/ẩm|nhiệt|điều kiện|thi công/.test(key)) tags.push('Điều kiện thi công')
-  if (!tags.length) tags.push(sp.danhMuc === 'son' ? 'Sơn & hoàn thiện' : 'Kỹ thuật')
-  return { sp, tags, doTinCay: 82 }
-}
 
 export default function IngestionScreen({ onClose }) {
   const [loai, setLoai] = useState('pdf')
@@ -39,7 +28,7 @@ export default function IngestionScreen({ onClose }) {
     setTt('analyzing')
     setKq(null)
     setTimeout(() => {
-      setKq(phanTich(noiDung, file?.name))
+      setKq(maikaPhanLoai(noiDung, file?.name))
       setTt('done')
     }, 1600)
   }
@@ -49,7 +38,7 @@ export default function IngestionScreen({ onClose }) {
   return (
     <ScreenShell title="Cổng update AI" onClose={onClose}>
       <h2 className="text-2xl font-black text-gray-900">Hôm nay cần cập nhật kiến thức gì?</h2>
-      <p className="mb-4 mt-1 text-sm text-gray-500">Tải lên tài liệu, hình ảnh, video hoặc ghi âm để AI phân tích và định tuyến vào kho kiến thức nội bộ.</p>
+      <p className="mb-4 mt-1 text-sm text-gray-500">Tải lên tài liệu, hình ảnh, video hoặc ghi âm để Maika phân tích và định tuyến vào kho kiến thức nội bộ.</p>
 
       {/* Loại dữ liệu */}
       <div className="mb-4 grid grid-cols-4 gap-2">
@@ -89,7 +78,7 @@ export default function IngestionScreen({ onClose }) {
       {tt === 'done' && kq && (
         <div className="mt-4 rounded-2xl border border-brand-200 bg-white p-4 shadow-sm">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm font-bold text-gray-900">🧭 Đề xuất phân loại</span>
+            <span className="flex items-center gap-1.5 text-sm font-bold text-gray-900"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-[10px] font-black text-white">M</span> Maika đề xuất phân loại</span>
             <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-bold text-green-700">Độ tin cậy {kq.doTinCay}%</span>
           </div>
           <div className="mb-3 flex flex-wrap gap-2">
