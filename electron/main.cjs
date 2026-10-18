@@ -68,11 +68,13 @@ function dangKyAutoUpdate(win) {
     return { ok: true }
   })
 
-  // Tự động kiểm tra + tải bản mới khi mở app (chỉ khi đã đóng gói)
+  // Tự động kiểm tra + tải bản mới — lùi ~5s để UI hiện trước, không chặn khởi động
   if (app.isPackaged) {
-    autoUpdater.checkForUpdatesAndNotify().catch((e) =>
-      console.warn('[auto-update] lỗi kiểm tra:', e?.message || e),
-    )
+    setTimeout(() => {
+      autoUpdater.checkForUpdatesAndNotify().catch((e) =>
+        console.warn('[auto-update] lỗi kiểm tra:', e?.message || e),
+      )
+    }, 5000)
   }
 }
 
