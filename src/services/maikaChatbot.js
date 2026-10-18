@@ -13,8 +13,9 @@ const MODEL = import.meta.env.VITE_GEMINI_MODEL || 'gemini-flash-latest'
 const EMBED_MODEL = import.meta.env.VITE_GEMINI_EMBED_MODEL || 'gemini-embedding-001'
 const BASE = 'https://generativelanguage.googleapis.com/v1beta'
 
-// Model dự phòng khi model cấu hình bị Google gỡ (404) — vd gemini-1.5/2.0-flash
-const MODEL_DU_PHONG = ['gemini-flash-latest', 'gemini-2.5-flash']
+// Model dự phòng — Google hay gỡ model cũ (404) hoặc quá tải tạm thời (503),
+// mỗi model có quota riêng (429). Xếp từ mạnh → nhẹ; bản "lite" nhanh, ít quá tải.
+const MODEL_DU_PHONG = ['gemini-flash-latest', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3-flash-preview', 'gemini-flash-lite-latest']
 export const SO_CHIEU_VECTOR = 768
 
 export function geminiCoCauHinh() {
@@ -40,28 +41,40 @@ async function goi(duongDan, body) {
     if (res.status >= 400) throw new GeminiLoi(res.status, JSON.stringify(res.data))
     return typeof res.data === 'string' ? JSON.parse(res.data) : res.data
   }
-  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) })
+  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout?.(60000) }) // WebView Android cũ không có timeout()
   if (!res.ok) throw new GeminiLoi(res.status, await res.text().catch(() => ''))
   return res.json()
 }
 
-// generateContent có tự chuyển model dự phòng khi model hiện tại trả 404
-let _modelDangDung = MODEL
+// Lỗi tạm thời / theo model / mạng chập chờn ("fetch failed" = TypeError) → thử model khác
+// (400, 401, 403: lỗi key/request → dừng luôn)
+const NEN_DOI_MODEL = (e) => [404, 429, 500, 502, 503, 504].includes(e.status) || e.name === 'TimeoutError' || e instanceof TypeError
+const _modelDaGo = new Set() // model trả 404 trong phiên này → bỏ qua
+// Gói free: ~20 request/ngày/model → model hết quota (429) bỏ qua tới khi hết retryDelay
+const _hetQuotaDen = new Map()
+const ngu = (ms) => new Promise((r) => setTimeout(r, ms))
+
+// generateContent: thử model cấu hình trước, lỗi tạm thời thì lần lượt qua các model dự phòng
 async function sinhNoiDung(body) {
-  const thuTu = [_modelDangDung, ...MODEL_DU_PHONG.filter((m) => m !== _modelDangDung)]
+  const thuTu = [...new Set([MODEL, ...MODEL_DU_PHONG])]
   let loiCuoi
-  for (const m of thuTu) {
-    try {
-      const data = await goi(`models/${m}:generateContent`, body)
-      _modelDangDung = m
-      const cand = data?.candidates?.[0]
-      const text = (cand?.content?.parts || []).filter((p) => !p.thought).map((p) => p.text || '').join('')
-      if (!text) throw new Error('Gemini không trả nội dung (finishReason: ' + (cand?.finishReason || data?.promptFeedback?.blockReason || '?') + ')')
-      return text.trim()
-    } catch (e) {
-      loiCuoi = e
-      if (e.status !== 404) throw e
-      console.warn(`[Maika] Model ${m} không còn hoạt động (404) → thử model dự phòng`)
+  for (let vong = 0; vong < 2; vong++) {
+    if (vong > 0) await ngu(2000) // mọi model đều quá tải → đợi rồi thử thêm 1 vòng
+    const conDung = thuTu.filter((x) => !_modelDaGo.has(x) && !((_hetQuotaDen.get(x) || 0) > Date.now()))
+    for (const m of conDung) {
+      try {
+        const data = await goi(`models/${m}:generateContent`, body)
+        const cand = data?.candidates?.[0]
+        const text = (cand?.content?.parts || []).filter((p) => !p.thought).map((p) => p.text || '').join('')
+        if (!text) throw new Error('Gemini không trả nội dung (finishReason: ' + (cand?.finishReason || data?.promptFeedback?.blockReason || '?') + ')')
+        return text.trim()
+      } catch (e) {
+        loiCuoi = e
+        if (!NEN_DOI_MODEL(e)) throw e
+        if (e.status === 404) _modelDaGo.add(m)
+        if (e.status === 429) _hetQuotaDen.set(m, Date.now() + Math.max(e.choGiay, 60) * 1000)
+        console.warn(`[Maika] Model ${m} lỗi ${e.status || e.name} → thử model khác`)
+      }
     }
   }
   throw loiCuoi

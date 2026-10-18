@@ -97,6 +97,9 @@ export async function maikaChatAI(lichSu) {
     if (e.status === 429) {
       return { text: `Maika đang bị Google giới hạn tần suất (gói free). Vui lòng thử lại sau ~${e.choGiay || 30} giây.`, nguon: 'loi', loi: true }
     }
+    if (e.status >= 500 || e.name === 'TimeoutError' || e instanceof TypeError) {
+      return { text: 'Máy chủ Google Gemini đang quá tải (Maika đã thử tất cả model dự phòng). Vui lòng hỏi lại sau 1–2 phút.', nguon: 'loi', loi: true }
+    }
     return { text: `Maika gặp lỗi khi gọi AI: ${e.message || e}. Kiểm tra API key / mạng rồi thử lại.`, nguon: 'loi', loi: true }
   }
 }

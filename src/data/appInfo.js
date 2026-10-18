@@ -3,7 +3,7 @@
 // ============================================================
 
 // Phiên bản hiện đang chạy trên thiết bị
-export const PHIEN_BAN_HIEN_TAI = '1.1.8'
+export const PHIEN_BAN_HIEN_TAI = '1.1.9'
 
 // ---- Cấu hình GitHub Releases (nguồn cập nhật OTA) ----
 // ⚠️ Đổi owner/repo thành repo GitHub thật của bạn.
@@ -18,12 +18,13 @@ export const GITHUB_API_LATEST = `https://api.github.com/repos/${GITHUB_REPO.own
 // Dữ liệu "server nội bộ" trả về khi kiểm tra cập nhật (mock).
 // Trong thực tế, dữ liệu này đến từ GitHub Releases API ở trên.
 export const BAN_CAP_NHAT_SERVER = {
-  phienBan: '1.1.8',
+  phienBan: '1.1.9',
   ngayPhatHanh: '2026-10-19',
   batBuoc: false, // true => chặn dùng app cho tới khi cập nhật
-  tieuDe: 'Maika tự học (bộ nhớ vector) + Gemini mới + tài liệu từ website',
-  kichThuocMB: { exe: 108, apk: 3.3 },
+  tieuDe: 'Sửa lỗi Maika báo lỗi khi Google quá tải / hết lượt miễn phí',
+  kichThuocMB: { exe: 108, apk: 3.4 },
   changelog: [
+    { loai: 'sualoi', noiDung: 'Maika tự chuyển sang model Gemini dự phòng khi model chính quá tải (503), hết lượt free trong ngày (429), bị gỡ (404) hoặc mạng chập chờn.' },
     { loai: 'moi', noiDung: 'Maika tự học: Admin sửa sai ngay trong khung chat, Maika áp dụng tức thì; nhân viên báo sai → Admin duyệt.' },
     { loai: 'moi', noiDung: 'Cổng AI Admin: Gemini phân tích PDF/ảnh/ghi chú thành tri thức, duyệt rồi nạp vào bộ nhớ Maika.' },
     { loai: 'caitien', noiDung: 'Đồng bộ vatlieunha.vn lấy thêm quy cách, thương hiệu, định mức, tài liệu PDF; Maika học toàn bộ mô tả kỹ thuật.' },
