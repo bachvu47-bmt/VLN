@@ -59,6 +59,7 @@ jobs:
         with:
           files: VatLieuNha-Sales-*.apk
           fail_on_unmatched_files: true
+          generate_release_notes: true
 
   # ---------- Windows (.exe) + electron-updater ----------
   windows:
@@ -86,3 +87,4 @@ jobs:
             release/*.exe.blockmap
             release/latest.yml
           fail_on_unmatched_files: true
+          generate_release_notes: true

@@ -3,7 +3,7 @@
 // ============================================================
 
 // Phiên bản hiện đang chạy trên thiết bị
-export const PHIEN_BAN_HIEN_TAI = '1.0.0'
+export const PHIEN_BAN_HIEN_TAI = '1.1.0'
 
 // ---- Cấu hình GitHub Releases (nguồn cập nhật OTA) ----
 // ⚠️ Đổi owner/repo thành repo GitHub thật của bạn.
@@ -21,13 +21,13 @@ export const BAN_CAP_NHAT_SERVER = {
   phienBan: '1.1.0',
   ngayPhatHanh: '2026-10-18',
   batBuoc: false, // true => chặn dùng app cho tới khi cập nhật
-  tieuDe: 'Nâng cấp trợ lý Maika + quét TikTok / YouTube',
-  kichThuocMB: { exe: 82.3, apk: 24.6 },
+  tieuDe: 'Giao diện mới + Trợ lý chuyên gia Maika (Claude AI)',
+  kichThuocMB: { exe: 108, apk: 3.3 },
   changelog: [
-    { loai: 'moi', noiDung: 'Trợ lý Maika tự quét video kỹ thuật trên TikTok & YouTube, gợi ý gắn vào mã sản phẩm.' },
-    { loai: 'moi', noiDung: 'Thêm Thẻ Cảnh báo Đỏ động cho dòng chống thấm PU khi độ ẩm sàn vượt ngưỡng.' },
-    { loai: 'caitien', noiDung: 'Đồng bộ đơn hàng KiotViet nhanh hơn ~2× và ổn định hơn.' },
-    { loai: 'sualoi', noiDung: 'Sửa lỗi đăng xuất từ xa không hiệu lực trên iPad.' },
+    { loai: 'moi', noiDung: 'Tái thiết kế toàn bộ giao diện theo bộ mẫu mới (Hôm nay, Tra cứu, Khách, Sau bán, Thêm).' },
+    { loai: 'moi', noiDung: 'Maika nâng cấp thành trợ lý chuyên gia xây dựng/vật liệu/nội thất, kết nối Claude AI.' },
+    { loai: 'caitien', noiDung: 'Auto-update: tự tải bản mới ở nền và cài khi khởi động lại.' },
+    { loai: 'sualoi', noiDung: 'Sửa lỗi nút cập nhật trên bản PC không tải được bản mới.' },
   ],
   taiVe: {
     exe: 'https://ota.vatlieunha.vn/builds/VatLieuNha-Sales-Setup-1.1.0.exe',

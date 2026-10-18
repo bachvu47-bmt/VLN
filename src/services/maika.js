@@ -9,8 +9,8 @@ import { SAN_PHAM } from '../data/mockData'
 
 export const MAIKA = {
   ten: 'Maika',
-  vaiTro: 'Trợ lý kỹ thuật & bán hàng',
-  moTa: 'Trợ lý ảo của Vật Liệu Nhà — tra cứu kỹ thuật, tư vấn sản phẩm, phân tích đơn hàng và hỗ trợ CSKH.',
+  vaiTro: 'Chuyên gia xây dựng, vật liệu & nội thất',
+  moTa: 'Trợ lý chuyên gia của Vật Liệu Nhà — am hiểu sâu kỹ thuật xây dựng, vật liệu xây dựng và nội thất; tư vấn giải pháp, định mức, quy trình thi công và phân tích dữ liệu cho đội ngũ kinh doanh.',
 }
 
 export const MAIKA_GOI_Y = [
