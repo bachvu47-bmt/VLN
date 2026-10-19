@@ -26,16 +26,29 @@ export default function AutoUpdateModal({ onClose, capNhatSan = null }) {
   const toast = useToast()
   const apkNative = laNativeAndroid()
 
-  const kiemTra = async () => {
-    setTt('checking')
-    const kq = await kiemTraGitHub()
+  const [loiKiemTra, setLoiKiemTra] = useState('')
+
+  // Áp kết quả kiểm tra GitHub → trạng thái modal; trả về bản mới nếu tải được ngay
+  const apKetQua = (kq) => {
     setNguon(kq.nguon)
     if (kq.coCapNhat && kq.moi) {
       setMoi(kq.moi)
       setTt('available')
-    } else {
-      setTt('uptodate')
+      return kq.moi
     }
+    if (kq.dangChuanBi) {
+      setMoi(kq.moi)
+      setTt('preparing')
+    } else if (kq.loi) {
+      setLoiKiemTra(kq.loi)
+      setTt('loi')
+    } else setTt('uptodate')
+    return null
+  }
+
+  const kiemTra = async () => {
+    setTt('checking')
+    apKetQua(await kiemTraGitHub())
   }
 
   const taiVe = async () => {
@@ -52,12 +65,16 @@ export default function AutoUpdateModal({ onClose, capNhatSan = null }) {
 
   // MOBILE (.apk): tải nền trong app → tự mở trình cài đặt Android (không ra web)
   const taiVaCaiMobile = async () => {
+    // Luôn hỏi lại GitHub ngay lúc bấm — không dùng kết quả cũ (có thể đã 30 phút trước)
+    setTt('checking')
+    const banMoi = apKetQua(await kiemTraGitHub())
+    if (!banMoi?.taiVe?.apk) return // đang chuẩn bị / đã mới nhất / lỗi mạng → modal đã báo rõ
     setTt('downloading')
     setTienDo(0)
     setDaTai(0)
     setTong(0)
     try {
-      await taiVaCaiApk(moi?.taiVe?.apk, (bytes, total) => {
+      await taiVaCaiApk(banMoi.taiVe.apk, (bytes, total) => {
         setDaTai(bytes)
         if (total) setTong(total)
         setTienDo(total > 0 ? Math.round((bytes / total) * 100) : 0)
@@ -126,8 +143,27 @@ export default function AutoUpdateModal({ onClose, capNhatSan = null }) {
           </div>
         )}
 
+        {/* preparing: có bản mới nhưng file cho máy này đang được đăng lên */}
+        {tt === 'preparing' && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center">
+            <div className="text-2xl">⏳</div>
+            <div className="mt-1 text-sm font-bold text-amber-800">Bản v{moi?.phienBan} đang được đóng gói</div>
+            <p className="mt-1 text-xs text-amber-700">Bản cài cho {nenTang.ten} chưa đăng xong. Vui lòng thử lại sau 5–10 phút.</p>
+            <button onClick={kiemTra} className="tap mt-3 rounded-lg bg-amber-600 px-4 py-2 text-xs font-bold text-white">🔄 Kiểm tra lại</button>
+          </div>
+        )}
+
+        {/* loi: không gọi được GitHub (mất mạng / giới hạn tần suất) */}
+        {tt === 'loi' && (
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-center">
+            <div className="text-sm font-bold text-gray-700">Không kiểm tra được bản mới</div>
+            <p className="mt-1 text-xs text-gray-500">Kiểm tra kết nối mạng rồi thử lại. ({loiKiemTra})</p>
+            <button onClick={kiemTra} className="tap mt-3 rounded-lg bg-brand-600 px-4 py-2 text-xs font-bold text-white">🔄 Thử lại</button>
+          </div>
+        )}
+
         {/* available | downloading | ready | installing */}
-        {moi && tt !== 'idle' && tt !== 'checking' && tt !== 'uptodate' && (
+        {moi && !['idle', 'checking', 'uptodate', 'preparing', 'loi'].includes(tt) && (
           <div>
             {/* Banner bản mới */}
             <div className="mb-3 rounded-2xl border-2 border-brand-600 bg-brand-50 p-4">

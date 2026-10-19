@@ -3,7 +3,7 @@
 // ============================================================
 
 // Phiên bản hiện đang chạy trên thiết bị
-export const PHIEN_BAN_HIEN_TAI = '1.1.15'
+export const PHIEN_BAN_HIEN_TAI = '1.1.16'
 
 // ---- Cấu hình GitHub Releases (nguồn cập nhật OTA) ----
 // ⚠️ Đổi owner/repo thành repo GitHub thật của bạn.
@@ -18,12 +18,13 @@ export const GITHUB_API_LATEST = `https://api.github.com/repos/${GITHUB_REPO.own
 // Dữ liệu "server nội bộ" trả về khi kiểm tra cập nhật (mock).
 // Trong thực tế, dữ liệu này đến từ GitHub Releases API ở trên.
 export const BAN_CAP_NHAT_SERVER = {
-  phienBan: '1.1.15',
+  phienBan: '1.1.16',
   ngayPhatHanh: '2026-10-19',
   batBuoc: false, // true => chặn dùng app cho tới khi cập nhật
-  tieuDe: 'Maika tự cào tri thức Sika, Jotun, Maxbond mỗi ngày — Admin duyệt rồi học',
+  tieuDe: 'Sửa lỗi cập nhật báo "Không có link .apk để tải"',
   kichThuocMB: { exe: 108, apk: 3.6 },
   changelog: [
+    { loai: 'sualoi', noiDung: 'Sửa lỗi bản cập nhật báo "chưa có link để tải": chỉ báo có bản mới khi file cài cho đúng máy đã sẵn sàng, và kiểm tra lại ngay lúc bấm tải.' },
     { loai: 'moi', noiDung: 'Mỗi ngày 2 lần (5:30, 12:30) Maika đọc trang sản phẩm Sika, Jotun, Maxbond mới/vừa cập nhật và tóm tắt thành thẻ tri thức.' },
     { loai: 'moi', noiDung: 'Duyệt kiến thức: lọc theo nguồn, mở link trang gốc, duyệt nhanh các thẻ có độ tin cậy cao — duyệt xong Maika học ngay.' },
     { loai: 'moi', noiDung: 'Tra cứu: hiện tồn kho & giá bán KiotViet khi tìm sản phẩm; hỏi Maika "còn hàng không, giá bao nhiêu" → trả số liệu thật.' },

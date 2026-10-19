@@ -83,28 +83,45 @@ function chuanHoaRelease(data) {
 // ============================================================
 //  1) KIỂM TRA BẢN MỚI TRÊN GITHUB
 // ============================================================
+// Bản mới chỉ "dùng được" khi Release đã có ĐÚNG file của nền tảng đang chạy
+// (Android cần .apk; PC cần .exe). Release đang đính file dở dang → coi như chưa có,
+// tránh báo cập nhật rồi bấm tải lại lỗi "Không có link .apk".
+function coFileChoNenTang(moi) {
+  const nt = nhanDienNenTang()
+  if (nt === 'mobile') return !!moi.taiVe.apk
+  if (nt === 'pc') return !!moi.taiVe.exe
+  return true // web: chỉ mở trang Release
+}
+
 export async function kiemTraGitHub() {
   try {
     const res = await fetch(GITHUB_API_LATEST, {
       headers: { Accept: 'application/vnd.github+json' },
+      cache: 'no-store', // luôn lấy trạng thái Release mới nhất, không dùng bản cache
     })
     if (!res.ok) throw new Error(`GitHub API ${res.status}`)
     const data = await res.json()
     const moi = chuanHoaRelease(data)
+    const moiHon = phienBanMoiHon(moi.phienBan, PHIEN_BAN_HIEN_TAI)
+    const sanSang = coFileChoNenTang(moi)
     return {
       nguon: 'github',
-      coCapNhat: phienBanMoiHon(moi.phienBan, PHIEN_BAN_HIEN_TAI),
+      coCapNhat: moiHon && sanSang,
+      dangChuanBi: moiHon && !sanSang, // có bản mới nhưng file cho máy này chưa đăng xong
       hienTai: PHIEN_BAN_HIEN_TAI,
       moi,
     }
   } catch (e) {
     // Repo chưa tồn tại / offline / chưa có release → fallback dữ liệu mock
-    console.warn('[githubUpdater] Không gọi được GitHub, dùng dữ liệu mock:', e.message)
+    // Dữ liệu dự phòng KHÔNG có link file thật → không bao giờ báo "có cập nhật" từ đây
+    // (trước đây có thể hiện nút Tải rồi lỗi vì link chỉ là trang web, không phải .apk/.exe)
+    console.warn('[githubUpdater] Không gọi được GitHub:', e.message)
     await delay(500)
     const fb = BAN_CAP_NHAT_SERVER
     return {
       nguon: 'mock',
-      coCapNhat: phienBanMoiHon(fb.phienBan, PHIEN_BAN_HIEN_TAI),
+      coCapNhat: false,
+      loi: e.message,
       hienTai: PHIEN_BAN_HIEN_TAI,
       moi: {
         ...fb,

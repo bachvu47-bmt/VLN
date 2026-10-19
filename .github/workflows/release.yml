@@ -1,6 +1,9 @@
 name: Build & Release
 
 # Tự động build + publish khi push tag dạng v* (vd: v1.1.0)
+# QUAN TRỌNG: 2 job build chỉ CẤT file (artifact); job "phat-hanh" chạy SAU CÙNG mới
+# tạo Release với ĐỦ .apk + .exe + latest.yml. Trước đây mỗi job tự tạo Release →
+# job Windows xong trước tạo Release thiếu .apk → app Android báo "Không có link .apk".
 on:
   push:
     tags:
@@ -63,12 +66,13 @@ jobs:
           cp android/app/build/outputs/apk/release/app-release.apk \
              "VatLieuNha-Sales-${GITHUB_REF_NAME}.apk"
 
-      - name: Đính APK vào GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Cất APK chờ phát hành
+        uses: actions/upload-artifact@v4
         with:
-          files: VatLieuNha-Sales-*.apk
-          fail_on_unmatched_files: true
-          generate_release_notes: true
+          name: ban-android
+          path: VatLieuNha-Sales-*.apk
+          if-no-files-found: error
+          retention-days: 3
 
   # ---------- Windows (.exe) + electron-updater ----------
   windows:
@@ -98,13 +102,44 @@ jobs:
       - name: Build .exe (không tự publish)
         run: npx electron-builder --win --x64 --publish never
 
-      - name: Đính .exe + latest.yml vào GitHub Release
+      - name: Cất .exe + latest.yml chờ phát hành
         # latest.yml bắt buộc phải nằm trong Release để electron-updater auto-update hoạt động
-        uses: softprops/action-gh-release@v2
+        uses: actions/upload-artifact@v4
         with:
-          files: |
+          name: ban-windows
+          path: |
             release/*.exe
             release/*.exe.blockmap
             release/latest.yml
+          if-no-files-found: error
+          retention-days: 3
+
+  # ---------- Phát hành: chỉ khi CẢ HAI bản build đều thành công ----------
+  phat-hanh:
+    needs: [android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: ban-phat-hanh
+          merge-multiple: true
+
+      - name: Kiểm tra đủ file trước khi phát hành
+        working-directory: ban-phat-hanh
+        run: |
+          ls -la
+          test -n "$(ls VatLieuNha-Sales-*.apk 2>/dev/null)" || { echo "THIẾU .apk"; exit 1; }
+          test -n "$(ls *Setup*.exe 2>/dev/null)" || { echo "THIẾU .exe"; exit 1; }
+          test -f latest.yml || { echo "THIẾU latest.yml"; exit 1; }
+
+      - name: Tạo GitHub Release với đủ .apk + .exe + latest.yml cùng lúc
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ban-phat-hanh/*.apk
+            ban-phat-hanh/*.exe
+            ban-phat-hanh/*.exe.blockmap
+            ban-phat-hanh/latest.yml
           fail_on_unmatched_files: true
           generate_release_notes: true
+          make_latest: true
