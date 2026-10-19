@@ -1,7 +1,7 @@
 {
   "name": "vatlieunha-sales",
   "private": true,
-  "version": "1.1.13",
+  "version": "1.1.14",
   "description": "Ứng dụng bán hàng nội bộ thương hiệu Vật Liệu Nhà",
   "author": "Vật Liệu Nhà",
   "type": "module",

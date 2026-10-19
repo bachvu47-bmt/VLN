@@ -1,6 +1,42 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DANH_MUC, SAN_PHAM } from '../data/mockData'
 import { dangKyTheoDoi, laySanPhamWeb } from '../data/productStore'
+import { useKiotViet } from '../hooks/useKiotViet'
+import { tienVN, timSanPham } from '../services/kiotViet'
+
+// Tồn kho & giá bán thật từ KiotViet cho từ khoá đang tìm
+function TonKhoKiotViet({ q }) {
+  const kv = useKiotViet()
+  const [tatCa, setTatCa] = useState(false)
+  if (!kv || q.trim().length < 2) return null
+  const ds = timSanPham(q, 30)
+  if (!ds.length) return null
+  return (
+    <div className="mb-4 rounded-2xl border border-gray-100 bg-white p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-sm font-black text-gray-900">📦 Tồn kho KiotViet</span>
+        <span className="text-[10px] text-gray-400">cập nhật {new Date(kv.capNhat).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+      </div>
+      <div className="divide-y divide-gray-100">
+        {(tatCa ? ds : ds.slice(0, 5)).map((p) => (
+          <div key={p.ma} className="flex items-center gap-2 py-2">
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-bold leading-snug text-gray-900">{p.ten}</div>
+              <div className="text-[10px] text-gray-400">{p.ma} · {p.nhom}</div>
+            </div>
+            <div className="flex-shrink-0 text-right">
+              <div className="text-xs font-bold tabular-nums text-gray-900">{tienVN(p.gia)}<span className="font-normal text-gray-400">/{p.dvt}</span></div>
+              <span className={`text-[10px] font-bold ${p.ton > 0 ? 'text-green-700' : 'text-gray-400'}`}>{p.ton > 0 ? `✓ Còn ${p.ton.toLocaleString('vi-VN')}` : '✕ Hết hàng'}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      {ds.length > 5 && (
+        <button onClick={() => setTatCa((x) => !x)} className="mt-1 w-full text-center text-[11px] font-semibold text-brand-600">{tatCa ? 'Thu gọn' : `Xem thêm ${ds.length - 5} mã ›`}</button>
+      )}
+    </div>
+  )
+}
 
 function Ico({ d, className = 'h-4 w-4' }) {
   return (
@@ -139,6 +175,8 @@ export default function LookupScreen({ onMo }) {
           className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
         />
       </div>
+
+      <TonKhoKiotViet q={q} />
 
       {/* Chips danh mục */}
       <div className="-mx-4 mb-4 flex gap-2.5 overflow-x-auto px-4 pb-1">

@@ -1,86 +1,162 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { DON_HANG } from '../data/mockData'
 import { maikaPhanTichDon } from '../services/maika'
 import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
-import { taoChamSocSauBan } from '../services/troLyChuDong'
+import { useKiotViet } from '../hooks/useKiotViet'
+import MaDuLieuCard from '../components/MaDuLieuCard'
+import { aiCoCauHinh } from '../services/maikaChatbot'
+import { hoaDonGanDay, tienVN } from '../services/kiotViet'
+import { soanTinFollowUp, taoChamSocSauBan } from '../services/troLyChuDong'
 import { nhanThoiGian } from '../data/viecStore'
 
 const MAU_TT = {
   'Mới': 'bg-blue-100 text-blue-700',
   'Đang xử lý': 'bg-amber-100 text-amber-700',
   'Đã giao': 'bg-green-100 text-green-700',
+  'Hoàn thành': 'bg-green-100 text-green-700',
 }
 
-function CardDon({ don }) {
+// ============================================================
+//  HOÁ ĐƠN KIOTVIET THẬT — hẹn hỏi thăm + Maika soạn tin chăm sóc
+// ============================================================
+function CardHoaDon({ hd, khachMap }) {
   const [mo, setMo] = useState(false)
-  const [daGui, setDaGui] = useState({})
   const [daHen, setDaHen] = useState(false)
+  const [tin, setTin] = useState('')
+  const [dangSoan, setDangSoan] = useState(false)
   const toast = useToast()
   const { user } = useAuth()
-  const buoc = maikaPhanTichDon(don)
+  const kh = khachMap.get(hd.maKH)
+  const sanPham = hd.ct.map(([, ten]) => ten).filter((t) => !/vận chuyển/i.test(t))
 
-  // Trợ lý chủ động: hẹn hỏi thăm khách sau bán, Maika nhắc đúng ngày
   const henChamSoc = async () => {
-    const v = await taoChamSocSauBan({ don, nguoiTao: user.id })
+    const v = await taoChamSocSauBan({
+      don: { khach: hd.khach, sdt: kh?.sdt || '', maDon: hd.ma, sanPham: sanPham.map((ten) => ({ ten })), goiY: '' },
+      nguoiTao: user.id,
+    })
     setDaHen(true)
-    toast(`Maika sẽ nhắc hỏi thăm ${don.khach} — ${nhanThoiGian(v.hanLuc)}`, 'success')
+    toast(`Maika sẽ nhắc hỏi thăm ${hd.khach} — ${nhanThoiGian(v.hanLuc)}`, 'success')
   }
-
-  const gui = (ma, loai, nhan) => {
-    setDaGui((d) => ({ ...d, [`${ma}-${loai}`]: true }))
-    toast(`Đã gửi ${nhan} tới khách`, 'success')
+  const soan = async () => {
+    setDangSoan(true)
+    try {
+      setTin(await soanTinFollowUp({ loai: 'sauban', tieuDe: `Hỏi thăm sau khi mua hàng (hoá đơn ${hd.ma})`, khach: hd.khach, sanPham: sanPham.join(', '), ghiChu: `Mua ngày ${new Date(hd.ngay).toLocaleDateString('vi-VN')}. Hỏi tiến độ thi công, hướng dẫn sử dụng/bảo quản, mời mua thêm phụ kiện nếu cần.` }, user.hoTen))
+    } catch (e) {
+      toast('Maika chưa soạn được: ' + (e.message || e), 'error')
+    } finally {
+      setDangSoan(false)
+    }
   }
+  const chep = () => navigator.clipboard.writeText(tin).then(() => toast('Đã chép — dán vào Zalo gửi khách', 'success'), () => toast('Không chép được', 'error'))
 
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
       <button onClick={() => setMo((v) => !v)} className="tap flex w-full items-start gap-3 p-4 text-left">
-        <span className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
-        </span>
+        <span className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600">🧾</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[11px] text-gray-400">{hd.ma}</span>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${MAU_TT[hd.tt] || 'bg-gray-100 text-gray-600'}`}>{hd.tt}</span>
+            <span className="ml-auto text-xs font-bold text-gray-900">{tienVN(hd.tong)}</span>
+          </div>
+          <div className="mt-0.5 truncate text-sm font-bold text-gray-900">{hd.khach}</div>
+          <div className="truncate text-[11px] text-gray-500">{sanPham.join(' · ') || '—'}</div>
+          <div className="text-[10px] text-gray-400">{nhanThoiGian(Date.parse(hd.ngay))} · {hd.nv}</div>
+        </div>
+        <span className={`text-gray-300 transition ${mo ? 'rotate-90' : ''}`}>›</span>
+      </button>
+
+      {mo && (
+        <div className="space-y-2 border-t border-gray-100 bg-gray-50 p-4">
+          <div className="rounded-xl border border-gray-100 bg-white p-2.5">
+            {hd.ct.map(([ma, ten, sl, gia], i) => (
+              <div key={ma + i} className="flex justify-between gap-2 py-0.5 text-[11px]">
+                <span className="text-gray-700">{ten} <span className="text-gray-400">×{sl}</span></span>
+                <span className="flex-shrink-0 tabular-nums text-gray-500">{tienVN(gia * sl)}</span>
+              </div>
+            ))}
+            {hd.tong > hd.daTra && <div className="mt-1 text-right text-[11px] font-bold text-amber-700">Còn nợ {tienVN(hd.tong - hd.daTra)}</div>}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <button onClick={henChamSoc} disabled={daHen} className={`tap rounded-lg px-2.5 py-1.5 text-[11px] font-bold ${daHen ? 'bg-green-50 text-green-700' : 'bg-brand-600 text-white'}`}>
+              {daHen ? '✓ Đã hẹn' : '⏰ Hẹn hỏi thăm sau 3 ngày'}
+            </button>
+            {aiCoCauHinh() && (
+              <button onClick={soan} disabled={dangSoan} className="tap rounded-lg border border-brand-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-brand-700 disabled:opacity-50">
+                {dangSoan ? '✍️ Đang soạn…' : '✍️ Maika soạn tin chăm sóc'}
+              </button>
+            )}
+            {kh?.sdt && <a href={`tel:${kh.sdt}`} className="tap rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-gray-700">📞 {kh.sdt}</a>}
+          </div>
+          {tin && (
+            <div className="rounded-xl border border-brand-100 bg-white p-2.5">
+              <textarea value={tin} onChange={(e) => setTin(e.target.value)} rows={5} className="w-full resize-none text-xs leading-relaxed text-gray-700 outline-none" />
+              <button onClick={chep} className="tap mt-1 w-full rounded-lg bg-brand-600 py-1.5 text-[11px] font-bold text-white">📋 Chép tin nhắn</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const KHOANG = [
+  { so: 1, nhan: 'Hôm nay' },
+  { so: 3, nhan: '3 ngày' },
+  { so: 7, nhan: '7 ngày' },
+  { so: 14, nhan: '14 ngày' },
+]
+
+function DanhSachKiotViet({ kv }) {
+  const [soNgay, setSoNgay] = useState(3)
+  const khachMap = useMemo(() => new Map(kv.khach.map((c) => [c.ma, c])), [kv])
+  // kv nằm trong deps để danh sách tính lại sau mỗi lần đồng bộ KiotViet
+  const ds = useMemo(() => (kv ? hoaDonGanDay(soNgay) : []), [kv, soNgay])
+  const tong = ds.reduce((s, h) => s + h.tong, 0)
+  return (
+    <>
+      <div className="mb-3 flex items-center justify-between rounded-xl bg-green-50 px-4 py-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-green-700">
+          <span className="h-2 w-2 rounded-full bg-green-500" /> KiotViet · {new Date(kv.capNhat).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+        </div>
+        <span className="text-xs text-green-600">{ds.length} hoá đơn · {tienVN(tong)}</span>
+      </div>
+      <div className="mb-3 flex gap-1.5">
+        {KHOANG.map((k) => (
+          <button key={k.so} onClick={() => setSoNgay(k.so)}
+            className={`tap rounded-full border px-3 py-1 text-[11px] font-semibold ${soNgay === k.so ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-gray-200 bg-white text-gray-600'}`}>
+            {k.nhan}
+          </button>
+        ))}
+      </div>
+      <div className="space-y-3">
+        {ds.slice(0, 60).map((hd) => <CardHoaDon key={hd.ma} hd={hd} khachMap={khachMap} />)}
+        {ds.length === 0 && <div className="rounded-2xl bg-white p-6 text-center text-sm text-gray-400">Chưa có hoá đơn trong khoảng này.</div>}
+      </div>
+    </>
+  )
+}
+
+// ---- Dữ liệu minh hoạ (khi máy chưa kết nối KiotViet) ----
+function CardDon({ don }) {
+  const [mo, setMo] = useState(false)
+  const buoc = maikaPhanTichDon(don)
+  return (
+    <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white opacity-70 shadow-sm">
+      <button onClick={() => setMo((v) => !v)} className="tap flex w-full items-start gap-3 p-4 text-left">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="font-mono text-[11px] text-gray-400">{don.maDon}</span>
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${MAU_TT[don.trangThai]}`}>{don.trangThai}</span>
           </div>
           <div className="mt-0.5 truncate text-sm font-bold text-gray-900">{don.khach} <span className="text-[11px] font-normal text-gray-400">(Dữ liệu minh họa)</span></div>
-          <div className="truncate text-[11px] text-gray-500">{don.sanPham.map((s) => `${s.ten} ×${s.soLuong}`).join(' · ')} · {don.ngay}</div>
+          <div className="truncate text-[11px] text-gray-500">{don.sanPham.map((s) => `${s.ten} ×${s.soLuong}`).join(' · ')}</div>
         </div>
-        <span className={`text-gray-300 transition ${mo ? 'rotate-90' : ''}`}>›</span>
       </button>
-
       {mo && (
-        <div className="border-t border-gray-100 bg-gray-50 p-4">
-          <div className="mb-3 flex items-center gap-2 text-xs font-bold text-brand-600"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-[10px] font-black text-white">M</span> Maika phân tích đơn hàng</div>
-          <div className="space-y-2">
-            {buoc.map((b, i) => (
-              <div key={b.sp.ma} className="rounded-xl border border-gray-100 bg-white p-3">
-                <div className="flex items-start gap-2">
-                  <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-brand-600 text-[11px] font-bold text-white">{i + 1}</span>
-                  <div className="flex-1">
-                    <div className="text-sm font-bold text-gray-800">{b.sp.ten}</div>
-                    <p className="mt-0.5 text-xs text-gray-600">{b.noiDung}</p>
-                    {b.canhBao && <p className="mt-1.5 rounded-lg bg-brand-50 px-2 py-1 text-[11px] font-semibold text-brand-700">⛔ Nhắc khách: {b.canhBao}</p>}
-                  </div>
-                </div>
-                <div className="mt-2.5 flex gap-2">
-                  <button disabled={daGui[`${b.sp.ma}-video`]} onClick={() => gui(b.sp.ma, 'video', 'video')}
-                    className={`tap flex-1 rounded-lg py-2 text-xs font-bold ${daGui[`${b.sp.ma}-video`] ? 'bg-green-100 text-green-700' : 'bg-brand-600 text-white'}`}>
-                    {daGui[`${b.sp.ma}-video`] ? '✓ Đã gửi video' : '▶ Gửi Video'}
-                  </button>
-                  <button disabled={daGui[`${b.sp.ma}-tl`]} onClick={() => gui(b.sp.ma, 'tl', 'tài liệu')}
-                    className={`tap flex-1 rounded-lg border py-2 text-xs font-bold ${daGui[`${b.sp.ma}-tl`] ? 'border-green-200 bg-green-50 text-green-700' : 'border-gray-200 text-gray-700'}`}>
-                    {daGui[`${b.sp.ma}-tl`] ? '✓ Đã gửi' : '📄 Gửi Tài liệu'}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-          <button onClick={henChamSoc} disabled={daHen}
-            className={`tap mt-3 w-full rounded-xl border py-2.5 text-xs font-bold ${daHen ? 'border-green-200 bg-green-50 text-green-700' : 'border-brand-200 bg-white text-brand-700'}`}>
-            {daHen ? '✓ Đã hẹn — Maika sẽ nhắc' : '⏰ Hẹn hỏi thăm khách sau 3 ngày'}
-          </button>
-          <p className="mt-3 text-center text-[10px] text-gray-400">Gửi qua Cổng Server tự động → Zalo / SMS / Email khách hàng</p>
+        <div className="space-y-2 border-t border-gray-100 bg-gray-50 p-4">
+          {buoc.map((b) => <p key={b.sp.ma} className="text-xs text-gray-600">• {b.noiDung}</p>)}
         </div>
       )}
     </div>
@@ -88,25 +164,24 @@ function CardDon({ don }) {
 }
 
 export default function ConsultScreen({ onMo }) {
+  const kv = useKiotViet()
   return (
     <div>
-      <h2 className="text-2xl font-black text-gray-900">Gợi ý tư vấn sau bán</h2>
-      <p className="mb-4 mt-1 text-sm text-gray-500">Đơn đồng bộ từ KiotViet · Maika gợi ý & gửi tài liệu</p>
-
-      <div className="mb-3 flex items-center justify-between rounded-xl bg-green-50 px-4 py-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-green-700">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" /> Đã đồng bộ KiotViet
-        </div>
-        <span className="text-xs text-green-600">{DON_HANG.length} đơn hôm nay</span>
-      </div>
+      <h2 className="text-2xl font-black text-gray-900">Chăm sóc sau bán</h2>
+      <p className="mb-4 mt-1 text-sm text-gray-500">Hoá đơn KiotViet · Maika hẹn hỏi thăm & soạn tin chăm sóc khách</p>
 
       <button onClick={() => onMo && onMo('guitailieu')} className="tap mb-4 flex w-full items-center justify-center gap-2 rounded-xl border border-brand-200 bg-brand-50 py-3 text-sm font-bold text-brand-700">
         📤 Gửi tài liệu cho khách
       </button>
 
-      <div className="space-y-3">
-        {DON_HANG.map((don) => <CardDon key={don.id} don={don} />)}
-      </div>
+      {kv ? (
+        <DanhSachKiotViet kv={kv} />
+      ) : (
+        <div className="space-y-3">
+          <MaDuLieuCard gon />
+          {DON_HANG.map((don) => <CardDon key={don.id} don={don} />)}
+        </div>
+      )}
     </div>
   )
 }

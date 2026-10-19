@@ -3,7 +3,7 @@
 // ============================================================
 
 // Phiên bản hiện đang chạy trên thiết bị
-export const PHIEN_BAN_HIEN_TAI = '1.1.13'
+export const PHIEN_BAN_HIEN_TAI = '1.1.14'
 
 // ---- Cấu hình GitHub Releases (nguồn cập nhật OTA) ----
 // ⚠️ Đổi owner/repo thành repo GitHub thật của bạn.
@@ -18,12 +18,16 @@ export const GITHUB_API_LATEST = `https://api.github.com/repos/${GITHUB_REPO.own
 // Dữ liệu "server nội bộ" trả về khi kiểm tra cập nhật (mock).
 // Trong thực tế, dữ liệu này đến từ GitHub Releases API ở trên.
 export const BAN_CAP_NHAT_SERVER = {
-  phienBan: '1.1.13',
+  phienBan: '1.1.14',
   ngayPhatHanh: '2026-10-19',
   batBuoc: false, // true => chặn dùng app cho tới khi cập nhật
-  tieuDe: 'Báo cáo bán hàng từ Google Sheets — Maika phân tích & nhắc follow-up',
+  tieuDe: 'Kết nối KiotViet: tồn kho, giá bán, hoá đơn & khách hàng thật',
   kichThuocMB: { exe: 108, apk: 3.6 },
   changelog: [
+    { loai: 'moi', noiDung: 'Tra cứu: hiện tồn kho & giá bán KiotViet khi tìm sản phẩm; hỏi Maika "còn hàng không, giá bao nhiêu" → trả số liệu thật.' },
+    { loai: 'moi', noiDung: 'Sau bán: hoá đơn KiotViet thật — hẹn hỏi thăm khách, Maika soạn tin chăm sóc theo đúng món khách đã mua.' },
+    { loai: 'moi', noiDung: 'Khách hàng: 1.976 khách KiotViet, tìm theo tên/SĐT, xem lịch sử mua & công nợ.' },
+    { loai: 'caitien', noiDung: 'Bảo mật: app không giữ key KiotViet; dữ liệu mã hoá, mở bằng "Mã dữ liệu cửa hàng" do Admin cấp.' },
     { loai: 'moi', noiDung: 'Báo cáo bán hàng (Admin): doanh thu, tỷ lệ chốt, kênh, tình trạng khách, sản phẩm hỏi nhiều — đọc trực tiếp Google Sheet báo cáo ngày, có biểu đồ.' },
     { loai: 'moi', noiDung: 'Hỏi Maika bằng câu tự nhiên: "Doanh thu tháng 9 theo tuần?", "Kênh nào nhiều khách nhất?" — trả số liệu chính xác kèm biểu đồ.' },
     { loai: 'moi', noiDung: 'Tự tìm báo giá 3–30 ngày chưa liên hệ lại → tạo nhắc follow-up hàng loạt vào màn Hôm nay.' },

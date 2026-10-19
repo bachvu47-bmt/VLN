@@ -9,6 +9,7 @@ import { laySanPhamWeb, sanSang as khoSanPhamSanSang } from './data/productStore
 import { datQuyenHocWeb, hocNen } from './services/vectorStore'
 import { batDauTheoDoi, dongBoLichNhac, xinQuyenThongBao } from './services/troLyChuDong'
 import { useToast } from './context/ToastContext'
+import { napKiotViet } from './services/kiotViet'
 import LoginScreen from './screens/LoginScreen'
 import HomeScreen from './screens/HomeScreen'
 import LookupScreen from './screens/LookupScreen'
@@ -63,6 +64,15 @@ export default function App() {
       listener?.remove?.()
     }
   }, [user, toast])
+
+  // KiotViet (bản sao mã hoá, GitHub Actions đồng bộ ~30 phút): nạp khi đăng nhập + làm mới 15 phút/lần
+  useEffect(() => {
+    if (!user) return
+    const nap = () => napKiotViet().catch((e) => console.warn('[KiotViet]', e.message))
+    nap()
+    const id = setInterval(nap, 15 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [user])
 
   // Tự động kiểm tra bản mới trên GitHub (khi mở app + định kỳ 30 phút)
   useEffect(() => {

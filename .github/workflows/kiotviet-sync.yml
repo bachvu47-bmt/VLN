@@ -1,0 +1,49 @@
+name: Đồng bộ KiotViet
+
+# Lấy dữ liệu KiotViet (CHỈ ĐỌC) → mã hoá → đăng lên nhánh "du-lieu" cho app tải.
+# Key KiotViet chỉ nằm trong GitHub Secrets, không bao giờ vào app.
+# Lịch: 30 phút/lần trong giờ làm việc VN (7:00–22:30 = 0:00–15:30 UTC).
+# GitHub có thể chạy trễ 5–20 phút so với lịch khi máy chủ bận.
+on:
+  schedule:
+    - cron: '*/30 0-15 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kiotviet-sync
+  cancel-in-progress: false
+
+jobs:
+  dong-bo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Lấy & mã hoá dữ liệu KiotViet
+        env:
+          KV_CLIENT_ID: ${{ secrets.KV_CLIENT_ID }}
+          KV_CLIENT_SECRET: ${{ secrets.KV_CLIENT_SECRET }}
+          KV_MA_DU_LIEU: ${{ secrets.KV_MA_DU_LIEU }}
+        run: |
+          mkdir -p /tmp/du-lieu
+          node scripts/kiotviet-sync.mjs /tmp/du-lieu/kiotviet.bin
+
+      - name: Đăng lên nhánh du-lieu (1 commit duy nhất, không phình lịch sử)
+        working-directory: /tmp/du-lieu
+        run: |
+          git init -q -b du-lieu
+          git config user.name "kiotviet-sync"
+          git config user.email "actions@users.noreply.github.com"
+          git add kiotviet.bin
+          git commit -q -m "Dữ liệu KiotViet $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" du-lieu

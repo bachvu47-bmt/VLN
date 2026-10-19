@@ -10,6 +10,7 @@ import { SAN_PHAM } from '../data/mockData'
 import { laySanPhamWeb } from '../data/productStore'
 import { aiCoCauHinh, geminiChat } from './maikaChatbot'
 import { truyXuat } from './vectorStore'
+import { duLieuKV, goiYSanPhamTuCau, tienVN } from './kiotViet'
 
 function coMang() {
   return typeof navigator === 'undefined' || navigator.onLine !== false
@@ -52,6 +53,17 @@ function khoNoiBo() {
       `- Định mức: ${sp.dinhMuc.giaTri} ${sp.dinhMuc.donVi} (${sp.dinhMuc.ghiChu}). ⚠️ ${sp.canhBao.join(' | ')}`,
     ].join('\n'),
   ).join('\n\n')
+}
+
+// Hàng hoá KiotViet khớp câu hỏi → giá bán & tồn kho THẬT cho Maika (chỉ khi máy đã nhập mã dữ liệu)
+function khoKiotViet(cau) {
+  const kv = duLieuKV()
+  const ds = kv ? goiYSanPhamTuCau(cau, 6) : []
+  if (!ds.length) return ''
+  const luc = new Date(kv.capNhat).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })
+  return `\n\nGIÁ BÁN & TỒN KHO KIOTVIET (cập nhật ${luc} — số liệu thật, ưu tiên khi hỏi giá/còn hàng):\n${ds
+    .map((p) => `- ${p.ten} (mã ${p.ma}): ${tienVN(p.gia)}/${p.dvt} · ${p.ton > 0 ? `còn ${p.ton} ${p.dvt}` : 'HẾT HÀNG'}`)
+    .join('\n')}`
 }
 
 // Câu truy vấn RAG: câu hỏi cuối + câu hỏi trước đó (giữ ngữ cảnh "còn loại kia thì sao?")
@@ -112,7 +124,7 @@ export async function maikaChatAI(lichSu) {
   try {
     const truyVan = cauTruyVan(lichSu)
     const thamKhao = truyVan.trim() ? await truyXuat(truyVan, { k: 6 }) : []
-    const { text, nhaCungCap } = await geminiChat(lichSu, { khoNoiBo: khoNoiBo(), triThuc: thamKhao })
+    const { text, nhaCungCap } = await geminiChat(lichSu, { khoNoiBo: khoNoiBo() + khoKiotViet(truyVan), triThuc: thamKhao })
     const sp = timSP(cauHoiCuoi)
     const taiLieu = XIN_TAI_LIEU.test(cauHoiCuoi) ? gomTaiLieu(thamKhao, sp) : undefined
     return { text: text || '(Maika chưa có câu trả lời)', sp, nguon: nhaCungCap, taiLieu }

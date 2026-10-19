@@ -164,8 +164,10 @@ async function groqChat(system, lichSu) {
 
 // Groq chỉ 8.000 token/phút → bớt tri thức truy xuất (4 mẩu, mỗi mẩu ≤ 700 ký tự)
 function rutGonNguCanh({ khoNoiBo = '', triThuc = [] } = {}) {
+  // Giữ trọn mục giá/tồn KiotViet (ngắn, quan trọng), chỉ cắt phần kho minh hoạ phía trước
+  const [kho, kv = ''] = khoNoiBo.split('\n\nGIÁ BÁN & TỒN KHO KIOTVIET')
   return {
-    khoNoiBo: khoNoiBo.slice(0, 3000),
+    khoNoiBo: kho.slice(0, 3000) + (kv ? '\n\nGIÁ BÁN & TỒN KHO KIOTVIET' + kv : ''),
     triThuc: triThuc.slice(0, 4).map((t) => ({ ...t, noiDung: t.noiDung.slice(0, 700) })),
   }
 }
@@ -185,6 +187,7 @@ NGUYÊN TẮC TRẢ LỜI:
 - KHÔNG CÓ DỮ LIỆU THÌ NÓI DỨT KHOÁT: câu hỏi về một SẢN PHẨM / THƯƠNG HIỆU / MÃ HÀNG / chủ đề cụ thể mà KHÔNG xuất hiện trong đính chính, tri thức truy xuất hay kho sản phẩm nội bộ bên dưới (vd "Luân lotus") → chỉ trả lời: "Maika chưa có dữ liệu về vấn đề này." (có thể thêm 1 câu xin tên đầy đủ, ảnh bao bì hoặc tài liệu). TUYỆT ĐỐI không đoán, không giới thiệu sản phẩm khác thay thế, không kể lan man.
 - Câu hỏi kỹ thuật chung (nguyên nhân thấm/nứt, quy trình thi công, xử lý bề mặt, phân tích ảnh hiện trường) → được dùng kiến thức chuyên môn để trả lời.
 - Tri thức truy xuất chỉ là "có thể liên quan" — mẩu nào không đúng chủ đề câu hỏi thì BỎ QUA, không nhắc tới.
+- GIÁ & TỒN KHO: chỉ báo giá/tồn theo mục "GIÁ BÁN & TỒN KHO KIOTVIET" (ghi rõ giờ cập nhật). Không có mục đó → nói chưa có số liệu kho, TUYỆT ĐỐI không tự bịa giá hay số lượng.
 - KHÔNG chèn đường link, URL, danh sách nguồn hay tên tệp tài liệu vào câu trả lời. Chỉ khi người dùng yêu cầu "cung cấp tài liệu chi tiết" / xin link / xin TDS thì mới nói tài liệu có ở mục "Tài liệu" bên dưới câu trả lời.
 - Thiếu dữ kiện quan trọng (bề mặt, độ ẩm, trong/ngoài trời, hạng mục, diện tích, ngân sách) → HỎI LẠI ngắn gọn trước khi chốt phương án.
 - Khi tư vấn giải pháp: nêu (1) chẩn đoán/giải pháp, (2) sản phẩm phù hợp + định mức, (3) tỷ lệ pha & trình tự thi công, (4) ⚠️ cảnh báo bắt buộc (vd: CẤM lăn PU khi sàn ẩm > 8%).
