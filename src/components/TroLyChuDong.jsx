@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { canFollowUp, coNguonBaoCao, taiBaoCao } from '../services/baoCaoSheets'
 import { useToast } from '../context/ToastContext'
 import { useViec } from '../hooks/useViec'
 import { LOAI_VIEC, nhanThoiGian, xoaViec } from '../data/viecStore'
@@ -19,11 +20,25 @@ import {
 // ============================================================
 //  THẺ "MAIKA NHẮC HÔM NAY" — tóm tắt + tạo việc bằng câu nói
 // ============================================================
-export function MaikaNhacHomNay({ onThem }) {
+export function MaikaNhacHomNay({ onThem, onMo }) {
   const { user } = useViec()
+  const { laAdmin } = useAuth()
   const toast = useToast()
   const [cau, setCau] = useState('')
   const [dang, setDang] = useState(false)
+  const [soFU, setSoFU] = useState(0)
+
+  // Admin: đếm báo giá trên Google Sheet cần follow-up (đọc bản lưu, làm mới nền nếu cũ)
+  useEffect(() => {
+    if (!laAdmin || !coNguonBaoCao()) return
+    let huy = false
+    taiBaoCao()
+      .then(({ rows }) => !huy && setSoFU(canFollowUp(rows).length))
+      .catch(() => {})
+    return () => {
+      huy = true
+    }
+  }, [laAdmin])
   const tt = tomTatHomNay(user?.id)
   const ten = user?.hoTen?.split(' ').pop() || ''
 
@@ -66,6 +81,13 @@ export function MaikaNhacHomNay({ onThem }) {
           <span className="text-gray-700">{tt.quaHan[0].tieuDe}</span>
           <span className="text-gray-400"> · trễ từ {nhanThoiGian(tt.quaHan[0].hanLuc)}</span>
         </div>
+      )}
+
+      {soFU > 0 && (
+        <button onClick={() => onMo?.('baocao')} className="tap mb-3 flex w-full items-center justify-between rounded-xl bg-white px-3 py-2 text-left text-xs">
+          <span><b className="text-gray-900">🔔 {soFU} báo giá</b> <span className="text-gray-600">trên báo cáo bán hàng cần follow-up</span></span>
+          <span className="font-bold text-brand-600">Xem ›</span>
+        </button>
       )}
 
       {aiCoCauHinh() && (

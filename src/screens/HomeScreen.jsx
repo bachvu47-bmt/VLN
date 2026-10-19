@@ -36,7 +36,7 @@ export default function HomeScreen({ onTab, onMo }) {
       </button>
 
       {/* Trợ lý chủ động — Maika nhắc việc hôm nay */}
-      <MaikaNhacHomNay onThem={setThemViec} />
+      <MaikaNhacHomNay onThem={setThemViec} onMo={onMo} />
 
       {/* Việc cần làm (dữ liệu thật, Maika tự nhắc đúng hạn) */}
       <DanhSachViec onThem={setThemViec} />

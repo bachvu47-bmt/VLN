@@ -10,6 +10,8 @@ import { chuyenGiongNoi } from '../services/maikaChatbot'
 import { adminSuaSai, deXuatSuaSai, deXuatTriThucMedia } from '../services/vectorStore'
 import { huyNhac, laCauTaoViec, tachViecTuCau, taoViec } from '../services/troLyChuDong'
 import { nhanThoiGian, xoaViec } from '../data/viecStore'
+import { coNguonBaoCao, hoiBaoCao, laCauBaoCao } from '../services/baoCaoSheets'
+import BieuDo from '../components/BieuDo'
 
 let _mid = 0
 
@@ -141,7 +143,7 @@ function TaiLieu({ ds }) {
 }
 
 export default function TuVanAIScreen({ onClose, onMo }) {
-  const { user } = useAuth()
+  const { user, laAdmin } = useAuth()
   const toast = useToast()
   const [tin, setTin] = useState('')
   const [dangGo, setDangGo] = useState(false)
@@ -174,6 +176,17 @@ export default function TuVanAIScreen({ onClose, onMo }) {
         return
       } catch {
         /* không tách được việc → trả lời như câu hỏi thường */
+      }
+    }
+    // Admin hỏi số liệu bán hàng ("doanh thu tháng này?") → đọc Google Sheet báo cáo, trả số + biểu đồ
+    if (laAdmin && !tinHoi.anh && coNguonBaoCao() && laCauBaoCao(tinHoi.text)) {
+      try {
+        const kq = await hoiBaoCao(tinHoi.text)
+        setMsgs((m) => [...m, { id: ++_mid, tu: 'maika', text: kq.text, bieuDo: kq.bieuDo }])
+        setDangGo(false)
+        return
+      } catch {
+        /* lỗi đọc sheet → trả lời như câu hỏi thường */
       }
     }
     const gon = lichSu.map((m) => (m.id === tinHoi.id ? m : { ...m, anh: undefined }))
@@ -357,12 +370,13 @@ export default function TuVanAIScreen({ onClose, onMo }) {
                     </button>
                   )}
                   <TaiLieu ds={m.taiLieu} />
+                  {m.bieuDo && <div className="mt-2 whitespace-normal"><BieuDo {...m.bieuDo} /></div>}
                   {m.viecMoi && !m.daHuyViec && (
                     <button onClick={() => huyNhac(m.viecMoi).then(() => xoaViec(m.viecMoi.id)).then(() => capNhatTin(m.id, { daHuyViec: true, text: 'Đã huỷ lịch nhắc.' }))}
                       className="tap mt-2 block text-[11px] font-semibold text-gray-500 underline">Huỷ nhắc này</button>
                   )}
                 </div>
-                {hoi && !m.loi && !m.daXuLy && !m.viecMoi && (
+                {hoi && !m.loi && !m.daXuLy && !m.viecMoi && !m.bieuDo && (
                   <div className="mt-1 flex flex-wrap items-center gap-x-3">
                     <SuaSai cauHoi={cauHoi} traLoiSai={m.text} media={hoi.media || []} sku={hoi.sku || ''}
                       onXong={(loai) => capNhatTin(m.id, { daXuLy: loai })} />

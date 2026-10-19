@@ -22,6 +22,7 @@ import GuiTaiLieuScreen from './screens/GuiTaiLieuScreen'
 import IngestionScreen from './screens/IngestionScreen'
 import DuyetScreen from './screens/DuyetScreen'
 import UsersScreen from './screens/UsersScreen'
+import BaoCaoScreen from './screens/BaoCaoScreen'
 
 const TAB_LIST = [
   { id: 'home', nhan: 'Hôm nay', icon: 'home' },
@@ -132,6 +133,7 @@ export default function App() {
       {overlay?.type === 'ingest' && <IngestionScreen onClose={dong} />}
       {overlay?.type === 'duyet' && <DuyetScreen onClose={dong} />}
       {overlay?.type === 'users' && <UsersScreen onClose={dong} />}
+      {overlay?.type === 'baocao' && <BaoCaoScreen onClose={dong} />}
 
       {hienCapNhat && <AutoUpdateModal capNhatSan={capNhat} onClose={() => setHienCapNhat(false)} />}
     </div>

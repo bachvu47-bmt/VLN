@@ -36,6 +36,7 @@ jobs:
           VITE_GEMINI_MODEL: gemini-flash-latest
           VITE_GEMINI_EMBED_MODEL: gemini-embedding-001
           VITE_GROQ_API_KEY: ${{ secrets.VITE_GROQ_API_KEY }}
+          VITE_SHEET_BAO_CAO_ID: ${{ secrets.VITE_SHEET_BAO_CAO_ID }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: |
@@ -89,6 +90,7 @@ jobs:
           VITE_GEMINI_MODEL: gemini-flash-latest
           VITE_GEMINI_EMBED_MODEL: gemini-embedding-001
           VITE_GROQ_API_KEY: ${{ secrets.VITE_GROQ_API_KEY }}
+          VITE_SHEET_BAO_CAO_ID: ${{ secrets.VITE_SHEET_BAO_CAO_ID }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
