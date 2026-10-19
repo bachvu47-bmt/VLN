@@ -292,10 +292,15 @@ export async function duyetDeXuat(id, { traLoiDung, nguoi }) {
   if (!cu) throw new Error('Không tìm thấy đề xuất')
   const dung = (traLoiDung ?? cu.traLoiDung).trim()
   const { vec: _v, coVec: _c, capNhatLuc: _m, daXoa: _x, ...goc } = cu
+  // Thẻ cào từ nhà sản xuất: nội dung Admin đã duyệt chính là tri thức (kèm tên nguồn)
+  if (cu.tuDong) {
+    return ghiDaDuyet({ ...goc, trangThai: 'da_duyet', traLoiDung: dung, noiDung: `${cu.tieuDe} (theo ${cu.nguonTen})\n${dung}`, duyetBoi: nguoi, duyetLuc: Date.now() })
+  }
   const laTriThucMedia = cu.loai === 'tai_lieu'
   const coMedia = cu.media?.length > 0
   const ghiChuMedia = coMedia ? `\n(Kèm ${cu.media.map((m) => (m.loai === 'anh' ? 'ảnh hiện trường' : 'ghi âm')).join(', ')}${cu.sku ? ` — SKU ${cu.sku}` : ''})` : ''
-  const ketQua = await ghiDaDuyet({
+  // Kho chung: bản duyệt được ghi lên máy chủ cùng id → lần kéo về sẽ thay bản nháp cục bộ
+  return ghiDaDuyet({
     ...goc,
     trangThai: 'da_duyet',
     tieuDe: laTriThucMedia ? cu.tieuDe.replace(/^Tri thức hiện trường: /, 'Hiện trường: ') : 'Đính chính: ' + cu.cauHoi.slice(0, 80),
@@ -304,9 +309,30 @@ export async function duyetDeXuat(id, { traLoiDung, nguoi }) {
     duyetBoi: nguoi,
     duyetLuc: Date.now(),
   })
-  // Thẻ có media chỉ nằm trên máy này; ở kho chung bản đã duyệt được ghi lên máy chủ → bỏ bản nháp cục bộ
-  if (CHUNG && coMedia) await xoaCucBo([id])
-  return ketQua
+}
+
+// Thẻ tri thức GitHub Actions cào từ trang nhà sản xuất → hàng chờ duyệt (lưu trên máy Admin)
+export async function themTheCao(t) {
+  const noiDung = [t.tomTat, ...t.cacY.map((y) => '• ' + y)].join('\n')
+  const rec = {
+    id: 'cao:' + t.id,
+    loai: 'tai_lieu',
+    trangThai: 'cho_duyet',
+    tuDong: true,
+    tieuDe: t.tieuDe,
+    cauHoi: t.tieuDe,
+    traLoiSai: `${t.tomTat}${t.sanPham?.length ? `\nSản phẩm: ${t.sanPham.join(', ')}` : ''}`,
+    traLoiDung: noiDung,
+    noiDung,
+    nguon: t.url,
+    nguonTen: t.nguon,
+    doTinCay: t.doTinCay,
+    capNhatNguon: t.capNhat,
+    nguoiTao: `Maika cào · ${t.nguon}`,
+    taoLuc: Date.parse(t.luc) || Date.now(),
+  }
+  await luuCucBo([rec])
+  return rec
 }
 
 export async function xoaTriThuc(id) {

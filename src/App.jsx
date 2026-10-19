@@ -10,6 +10,7 @@ import { datQuyenHocWeb, hocNen } from './services/vectorStore'
 import { batDauTheoDoi, dongBoLichNhac, xinQuyenThongBao } from './services/troLyChuDong'
 import { useToast } from './context/ToastContext'
 import { napKiotViet } from './services/kiotViet'
+import { napTheCao } from './services/triThucCao'
 import LoginScreen from './screens/LoginScreen'
 import HomeScreen from './screens/HomeScreen'
 import LookupScreen from './screens/LookupScreen'
@@ -73,6 +74,18 @@ export default function App() {
     const id = setInterval(nap, 15 * 60 * 1000)
     return () => clearInterval(id)
   }, [user])
+
+  // Admin: nhận thẻ tri thức Maika cào từ nhà sản xuất (2 lần/ngày) vào hàng chờ duyệt
+  useEffect(() => {
+    if (user?.vaiTro !== 'admin') return
+    const nap = () =>
+      napTheCao()
+        .then((n) => n && toast(`📘 Maika vừa cào ${n} tri thức mới từ nhà sản xuất — chờ bạn duyệt`, 'info'))
+        .catch((e) => console.warn('[Tri thức cào]', e.message))
+    nap()
+    const id = setInterval(nap, 3 * 3600 * 1000)
+    return () => clearInterval(id)
+  }, [user, toast])
 
   // Tự động kiểm tra bản mới trên GitHub (khi mở app + định kỳ 30 phút)
   useEffect(() => {

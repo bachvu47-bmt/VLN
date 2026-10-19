@@ -35,6 +35,7 @@ function MediaXem({ md }) {
 }
 
 const NHAN = {
+  cao: { ten: 'Maika cào từ nhà sản xuất', mau: 'bg-emerald-50 text-emerald-700', cu: 'Tóm tắt từ trang nguồn', moi: 'Tri thức sẽ nạp vào Maika (kiểm tra & chỉnh nếu cần)' },
   sua_sai: { ten: 'Báo sai từ nhân viên', mau: 'bg-amber-50 text-amber-700', cu: 'Maika đã trả lời (bị báo sai)', moi: 'Nội dung đề xuất (Admin có thể chỉnh trước khi duyệt)' },
   tai_lieu: { ten: 'Tri thức hiện trường', mau: 'bg-blue-50 text-blue-700', cu: 'Câu trả lời của Maika', moi: 'Giải pháp sẽ nạp vào Maika (chỉnh nếu cần)' },
 }
@@ -45,7 +46,7 @@ export default function TheDeXuat({ r }) {
   const toast = useToast()
   const [dung, setDung] = useState(r.traLoiDung)
   const [dangXuLy, setDangXuLy] = useState(false)
-  const nhan = NHAN[r.loai] || NHAN.sua_sai
+  const nhan = r.tuDong ? NHAN.cao : NHAN[r.loai] || NHAN.sua_sai
 
   const pheDuyet = async () => {
     if (dangXuLy || !dung.trim()) return
@@ -77,9 +78,13 @@ export default function TheDeXuat({ r }) {
           <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${nhan.mau}`}>{nhan.ten}</span>
           {r.media?.length > 0 && <span className="rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-bold text-purple-700">Multimodal</span>}
           {r.sku && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-600">SKU {r.sku}</span>}
+          {r.tuDong && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-600">{r.capNhatNguon ? 'Trang vừa cập nhật' : 'Mới'} · tin cậy {r.doTinCay}%</span>}
           <span className="ml-auto text-[10px] text-gray-400">{r.nguoiTao} · {new Date(r.taoLuc).toLocaleString('vi-VN')}</span>
         </div>
-        <h3 className="text-sm font-black text-gray-900">❓ {r.cauHoi}</h3>
+        <h3 className="text-sm font-black text-gray-900">{r.tuDong ? '📘' : '❓'} {r.cauHoi}</h3>
+        {r.tuDong && r.nguon && (
+          <a href={r.nguon} target="_blank" rel="noreferrer" className="mt-0.5 block truncate text-[11px] text-brand-600 underline">{r.nguon}</a>
+        )}
       </div>
 
       {r.media?.length > 0 && (
