@@ -6,6 +6,7 @@ import { dongBoVaHoc } from '../services/webSyncService'
 import { laySanPhamWeb } from '../data/productStore'
 import { useBoNhoMaika } from '../hooks/useBoNhoMaika'
 import ChangePasswordModal from '../components/ChangePasswordModal'
+import PinAdminCard from '../components/PinAdminCard'
 
 function vietTat(t = '') {
   const w = t.trim().split(/\s+/)
@@ -32,7 +33,12 @@ export default function ThemScreen({ user, onMo, onCapNhat, onLogout }) {
     try {
       const kq = await dongBoVaHoc(() => {})
       setSoWeb(kq.soSanPham)
-      toast(`Đã đồng bộ ${kq.soSanPham} sản phẩm vào Tra cứu · Maika đang học ${kq.doanMoi} đoạn tri thức mới`, 'success')
+      toast(
+        kq.boQua
+          ? `Đã đồng bộ ${kq.soSanPham} sản phẩm vào Tra cứu · Nhập PIN Admin để nạp tri thức lên kho chung`
+          : `Đã đồng bộ ${kq.soSanPham} sản phẩm vào Tra cứu · Maika đang học ${kq.doanMoi} đoạn tri thức mới`,
+        'success',
+      )
     } catch (e) {
       toast('Đồng bộ lỗi: ' + (e.message || e) + ' (có thể do CORS trên web — thử trên bản .apk)', 'error')
     } finally {
@@ -77,6 +83,8 @@ export default function ThemScreen({ user, onMo, onCapNhat, onLogout }) {
           </button>
         ))}
       </div>
+
+      {admin && <PinAdminCard />}
 
       {/* Đồng bộ dữ liệu từ Website (Admin) */}
       {admin && (

@@ -60,20 +60,44 @@ function cauTruyVan(lichSu) {
   return hoi.slice(-2).join('\n')
 }
 
+// Người dùng xin tài liệu/link → mới đính kèm (không tự động gắn link vào mọi câu trả lời)
+const XIN_TAI_LIEU = /(tài liệu|tai lieu|link|đường dẫn|tds|msds|catalog|datasheet|hướng dẫn thi công chi tiết)/i
+
+function gomTaiLieu(thamKhao, sp) {
+  const web = laySanPhamWeb()
+  const ds = []
+  const them = (ten, url) => url && !ds.some((x) => x.url === url) && ds.push({ ten, url })
+  const spIds = [...new Set([...thamKhao.map((t) => t.spId), sp?.id].filter(Boolean))]
+  for (const id of spIds) {
+    const p = web.find((x) => x.id === id)
+    if (!p) continue
+    p.taiLieu?.forEach((tl) => typeof tl === 'object' && them(`📄 ${tl.ten}`, tl.url))
+    if (p.video) them(`▶ Video: ${p.ten}`, p.video)
+    them(`🌐 ${p.ten}`, p.url)
+  }
+  return ds.slice(0, 8)
+}
+
 const THONG_BAO_OFFLINE =
   'Maika chưa có dữ liệu offline về nội dung này. Vui lòng bật mạng để Maika tra cứu qua Gemini.'
 
 // ============================================================
-//  Hội thoại — nhận TOÀN BỘ lịch sử [{tu:'user'|'maika', text}]
-//  Trả về { text, sp?, nguon, thamKhao?, loi? }
+//  Hội thoại — nhận TOÀN BỘ lịch sử [{tu:'user'|'maika', text, anh?}]
+//  (anh = { mime, base64 } của tin nhắn đang hỏi — ảnh hiện trường)
+//  Trả về { text, sp?, nguon, taiLieu?, loi? } — taiLieu chỉ có khi người dùng xin
 // ============================================================
 export async function maikaChatAI(lichSu) {
   const nt = maikaCheDo()
-  const cauHoiCuoi = [...lichSu].reverse().find((m) => m.tu === 'user')?.text || ''
+  const tinCuoi = [...lichSu].reverse().find((m) => m.tu === 'user')
+  const cauHoiCuoi = tinCuoi?.text || ''
+
+  if (nt === 'offline' && tinCuoi?.anh) {
+    return { text: 'Phân tích ảnh cần kết nối mạng. Vui lòng bật mạng rồi gửi lại ảnh cho Maika.', nguon: 'offline' }
+  }
 
   if (nt === 'offline') {
     const [tt] = await truyXuat(cauHoiCuoi, { k: 1, dungVector: false })
-    if (tt) return { text: tt.noiDung, nguon: 'offline', thamKhao: [tt] }
+    if (tt) return { text: tt.noiDung, nguon: 'offline' }
     const sp = timSP(cauHoiCuoi)
     return sp ? { text: tomTatSP(sp), sp, nguon: 'offline' } : { text: THONG_BAO_OFFLINE, nguon: 'offline' }
   }
@@ -86,9 +110,12 @@ export async function maikaChatAI(lichSu) {
   }
 
   try {
-    const thamKhao = await truyXuat(cauTruyVan(lichSu), { k: 6 })
+    const truyVan = cauTruyVan(lichSu)
+    const thamKhao = truyVan.trim() ? await truyXuat(truyVan, { k: 6 }) : []
     const { text, nhaCungCap } = await geminiChat(lichSu, { khoNoiBo: khoNoiBo(), triThuc: thamKhao })
-    return { text: text || '(Maika chưa có câu trả lời)', sp: timSP(cauHoiCuoi), nguon: nhaCungCap, thamKhao }
+    const sp = timSP(cauHoiCuoi)
+    const taiLieu = XIN_TAI_LIEU.test(cauHoiCuoi) ? gomTaiLieu(thamKhao, sp) : undefined
+    return { text: text || '(Maika chưa có câu trả lời)', sp, nguon: nhaCungCap, taiLieu }
   } catch (e) {
     console.warn('[Maika AI] Lỗi gọi AI:', e.message)
     if (!coMang()) {

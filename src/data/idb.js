@@ -4,9 +4,10 @@
 //  Chạy được trên web, Electron (.exe) và Android WebView (.apk).
 // ============================================================
 const DB_NAME = 'vln_sales'
-const DB_VERSION = 1
+const DB_VERSION = 2
 export const STORE_KV = 'kv' // key-value chung (vd: danh sách sản phẩm web)
 export const STORE_TRI_THUC = 'tri_thuc' // bộ nhớ vector của Maika
+export const STORE_MEDIA = 'media' // ảnh & âm thoại gửi cho Maika (Blob + SKU)
 
 let _db = null
 
@@ -19,6 +20,7 @@ function moDB() {
       const db = req.result
       if (!db.objectStoreNames.contains(STORE_KV)) db.createObjectStore(STORE_KV)
       if (!db.objectStoreNames.contains(STORE_TRI_THUC)) db.createObjectStore(STORE_TRI_THUC, { keyPath: 'id' })
+      if (!db.objectStoreNames.contains(STORE_MEDIA)) db.createObjectStore(STORE_MEDIA, { keyPath: 'id' })
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)

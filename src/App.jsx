@@ -6,7 +6,7 @@ import AutoUpdateModal from './components/AutoUpdateModal'
 import { kiemTraGitHub } from './services/githubUpdater'
 import { dongBoVaHoc } from './services/webSyncService'
 import { laySanPhamWeb, sanSang as khoSanPhamSanSang } from './data/productStore'
-import { hocNen } from './services/vectorStore'
+import { datQuyenHocWeb, hocNen } from './services/vectorStore'
 import LoginScreen from './screens/LoginScreen'
 import HomeScreen from './screens/HomeScreen'
 import LookupScreen from './screens/LookupScreen'
@@ -59,6 +59,7 @@ export default function App() {
   // đã có cache thì chỉ học tiếp các mẩu tri thức còn thiếu vector.
   useEffect(() => {
     if (!user) return
+    datQuyenHocWeb(user.vaiTro === 'admin') // chỉ máy Admin tốn quota embedding cho dữ liệu web
     khoSanPhamSanSang.then(() => {
       if (laySanPhamWeb().length === 0) {
         dongBoVaHoc(() => {}).catch(() => {

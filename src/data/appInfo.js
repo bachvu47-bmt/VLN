@@ -3,7 +3,7 @@
 // ============================================================
 
 // Phiên bản hiện đang chạy trên thiết bị
-export const PHIEN_BAN_HIEN_TAI = '1.1.10'
+export const PHIEN_BAN_HIEN_TAI = '1.1.11'
 
 // ---- Cấu hình GitHub Releases (nguồn cập nhật OTA) ----
 // ⚠️ Đổi owner/repo thành repo GitHub thật của bạn.
@@ -18,12 +18,16 @@ export const GITHUB_API_LATEST = `https://api.github.com/repos/${GITHUB_REPO.own
 // Dữ liệu "server nội bộ" trả về khi kiểm tra cập nhật (mock).
 // Trong thực tế, dữ liệu này đến từ GitHub Releases API ở trên.
 export const BAN_CAP_NHAT_SERVER = {
-  phienBan: '1.1.10',
-  ngayPhatHanh: '2026-10-19',
+  phienBan: '1.1.11',
+  ngayPhatHanh: '2026-10-20',
   batBuoc: false, // true => chặn dùng app cho tới khi cập nhật
-  tieuDe: 'Maika thêm nguồn AI Groq miễn phí — hết lượt Gemini vẫn trả lời',
+  tieuDe: 'Maika xem ảnh, nghe giọng nói & hết trả lời lan man',
   kichThuocMB: { exe: 108, apk: 3.4 },
   changelog: [
+    { loai: 'moi', noiDung: 'Gửi ảnh cho Maika (chụp hoặc chọn từ thư viện) — phân tích vết nứt, thấm, bong tróc và đề xuất giải pháp thi công.' },
+    { loai: 'moi', noiDung: 'Giữ nút micro để nói (như Zalo) — Maika chuyển giọng nói thành chữ rồi trả lời.' },
+    { loai: 'moi', noiDung: 'AI Admin: tab "Phê duyệt Multimodal" duyệt thẻ tri thức kèm ảnh/ghi âm trước khi nạp cho Maika.' },
+    { loai: 'sualoi', noiDung: 'Maika không còn kèm danh sách nguồn không liên quan; không có dữ liệu thì nói "Maika chưa có dữ liệu về vấn đề này". Link tài liệu chỉ hiện khi bạn yêu cầu.' },
     { loai: 'moi', noiDung: 'Maika tự chuyển sang Groq (miễn phí, ~1.000 câu/ngày) khi Gemini hết 20 lượt/ngày/model hoặc gặp sự cố.' },
     { loai: 'caitien', noiDung: 'Không chờ quá 30 giây khi máy chủ Google bị treo — tự đổi sang model khác.' },
     { loai: 'sualoi', noiDung: 'Maika tự chuyển sang model Gemini dự phòng khi model chính quá tải (503), hết lượt free trong ngày (429), bị gỡ (404) hoặc mạng chập chờn.' },

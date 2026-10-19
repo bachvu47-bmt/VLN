@@ -4,7 +4,10 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { useBoNhoMaika } from '../hooks/useBoNhoMaika'
 import { docFileBase64, geminiCoCauHinh, GIOI_HAN_FILE_MB, phanTichTaiLieu } from '../services/maikaChatbot'
-import { danhSach, hocNen, napTaiLieu, xoaTriThuc } from '../services/vectorStore'
+import { cheDoLuuTru, danhSach, hocNen, napTaiLieu, xoaTriThuc } from '../services/vectorStore'
+import { layPinAdmin } from '../services/khoChung'
+import { luuMedia } from '../data/mediaStore'
+import TheDeXuat from '../components/TheDeXuat'
 import { dongBoVaHoc } from '../services/webSyncService'
 
 const LOAI = [
@@ -37,7 +40,12 @@ function TheBoNho() {
     setSoLay(0)
     try {
       const kq = await dongBoVaHoc(setSoLay)
-      toast(`Đã đồng bộ ${kq.soSanPham} SP · ${kq.doanMoi} đoạn tri thức mới đang được học`, 'success')
+      toast(
+        kq.boQua
+          ? `Đã đồng bộ ${kq.soSanPham} SP · Nhập PIN Admin (màn Tài khoản) để nạp tri thức lên kho chung`
+          : `Đã đồng bộ ${kq.soSanPham} SP · ${kq.doanMoi} đoạn tri thức mới đang được học`,
+        'success',
+      )
     } catch (e) {
       toast('Đồng bộ lỗi: ' + (e.message || e), 'error')
     } finally {
@@ -51,7 +59,12 @@ function TheBoNho() {
   return (
     <div className="mb-5 rounded-2xl border border-brand-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-sm font-black text-gray-900">🧠 Bộ nhớ Maika (Vector DB)</span>
+        <span className="text-sm font-black text-gray-900">
+          🧠 Bộ nhớ Maika
+          <span className="ml-1 text-[10px] font-semibold text-gray-500">
+            {cheDoLuuTru() === 'chung' ? (layPinAdmin() ? '· Kho chung (Admin)' : '· Kho chung — chưa nhập PIN') : '· Lưu trên máy này'}
+          </span>
+        </span>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${geminiCoCauHinh() ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
           {geminiCoCauHinh() ? 'Gemini đã kết nối' : 'Chưa có API key'}
         </span>
@@ -119,7 +132,7 @@ function DaHoc() {
             </div>
             <div className="text-xs font-bold text-gray-900">{r.tieuDe}</div>
             <p className="mt-0.5 line-clamp-3 whitespace-pre-line text-[11px] text-gray-600">{r.noiDung}</p>
-            <button onClick={() => xoaTriThuc(r.id).then(() => toast('Đã xoá khỏi bộ nhớ Maika', 'info'))}
+            <button onClick={() => xoaTriThuc(r.id).then(() => toast('Đã xoá khỏi bộ nhớ Maika', 'info'), (e) => toast('Xoá lỗi: ' + e.message, 'error'))}
               className="tap mt-1 text-[11px] font-semibold text-red-500">Xoá khỏi bộ nhớ</button>
           </div>
         ))}
@@ -138,7 +151,11 @@ export default function IngestionScreen({ onClose }) {
   const [kq, setKq] = useState(null)
   const [banSua, setBanSua] = useState({ tieuDe: '', noiDung: '' })
   const [dangNap, setDangNap] = useState(false)
+  const [tab, setTab] = useState('nap')
   const inputRef = useRef(null)
+  useBoNhoMaika() // cập nhật số thẻ chờ duyệt
+  const choDuyetMM = danhSach({ trangThai: 'cho_duyet' }).filter((r) => r.media?.length)
+  const soMM = choDuyetMM.length
 
   const chonFile = (e) => {
     const f = e.target.files?.[0]
@@ -169,12 +186,16 @@ export default function IngestionScreen({ onClose }) {
     if (dangNap || !banSua.noiDung.trim()) return
     setDangNap(true)
     try {
+      // Lưu tệp gốc (ảnh/ghi âm/video/PDF) vào kho media để đối chiếu sau này
+      const loaiMedia = file?.type.startsWith('image/') ? 'anh' : file?.type.startsWith('audio/') ? 'am_thanh' : file ? 'tep' : null
+      const md = file ? await luuMedia(file, { loai: loaiMedia, nguoi: user.hoTen }) : null
       const r = await napTaiLieu({
         tieuDe: banSua.tieuDe.trim() || 'Tri thức nạp thủ công',
         noiDung: banSua.noiDung.trim(),
         tags: kq?.tags || [],
         nguon: file?.name || 'Ghi chú Admin',
         nguoi: user.hoTen,
+        media: md ? [{ id: md.id, loai: loaiMedia }] : [],
       })
       toast(r.daHoc ? 'Maika đã học tri thức mới ✓' : 'Đã lưu — Maika sẽ học khi có mạng', 'success')
       setKq(null)
@@ -194,6 +215,23 @@ export default function IngestionScreen({ onClose }) {
     <ScreenShell title="AI Admin · Cổng dạy Maika" onClose={onClose}>
       <TheBoNho />
 
+      {/* Tab */}
+      <div className="mb-4 flex rounded-xl bg-gray-100 p-1">
+        {[
+          ['nap', '✨ Nạp tri thức'],
+          ['mm', `🖼️ Phê duyệt Multimodal${soMM ? ` (${soMM})` : ''}`],
+        ].map(([id, nhan]) => (
+          <button key={id} onClick={() => setTab(id)}
+            className={`tap flex-1 rounded-lg py-2 text-xs font-bold transition ${tab === id ? 'bg-white text-brand-700 shadow-sm' : 'text-gray-500'}`}>
+            {nhan}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'mm' ? (
+        <PheDuyetMultimodal ds={choDuyetMM} />
+      ) : (
+      <>
       <h2 className="text-2xl font-black text-gray-900">Hôm nay cần dạy Maika điều gì?</h2>
       <p className="mb-4 mt-1 text-sm text-gray-500">Tải tài liệu, ảnh, video, ghi âm hoặc gõ ghi chú — Gemini trích xuất kiến thức, Admin duyệt rồi nạp thẳng vào bộ nhớ để Maika học ngay.</p>
 
@@ -258,6 +296,33 @@ export default function IngestionScreen({ onClose }) {
       )}
 
       <DaHoc />
+      </>
+      )}
     </ScreenShell>
+  )
+}
+
+// ---- Tab "Phê duyệt Tri thức Multimodal": thẻ chờ duyệt có ảnh / âm thoại ----
+function PheDuyetMultimodal({ ds }) {
+  return (
+    <div>
+      <h2 className="text-xl font-black text-gray-900">Phê duyệt Tri thức Multimodal</h2>
+      <p className="mb-4 mt-1 text-xs text-gray-500">
+        Thẻ tri thức kèm ảnh hiện trường / ghi âm do nhân viên gửi từ khung chat Maika ("Báo sai" hoặc "Lưu thành tri thức"). Xem media, chỉnh giải pháp rồi phê duyệt để Maika học ngay.
+      </p>
+      {ds.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-8 text-center">
+          <div className="mb-2 text-3xl">🖼️</div>
+          <div className="text-sm font-bold text-gray-700">Chưa có thẻ Multimodal nào chờ duyệt</div>
+          <p className="mt-1 text-xs text-gray-400">Đề xuất chỉ có chữ nằm ở màn "Duyệt kiến thức".</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {ds.map((r) => (
+            <TheDeXuat key={r.id} r={r} />
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

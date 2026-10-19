@@ -8,8 +8,9 @@
 //  Native (.apk) dùng CapacitorHttp; .exe/web dùng fetch (Gemini cho phép CORS).
 //  Key free: https://aistudio.google.com/apikey → VITE_GEMINI_API_KEY
 // ============================================================
+import { blobSangBase64 } from '../data/mediaStore'
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || ''
+const API_KEY =import.meta.env.VITE_GEMINI_API_KEY || ''
 const MODEL = import.meta.env.VITE_GEMINI_MODEL || 'gemini-flash-latest'
 const EMBED_MODEL = import.meta.env.VITE_GEMINI_EMBED_MODEL || 'gemini-embedding-001'
 const BASE = 'https://generativelanguage.googleapis.com/v1beta'
@@ -23,11 +24,13 @@ export const SO_CHIEU_VECTOR = 768
 // nhưng chỉ 8.000 token/phút → gửi prompt rút gọn.
 const GROQ_KEY = import.meta.env.VITE_GROQ_API_KEY || ''
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
+// docAnh: model nhận được ảnh (đã thử: chỉ qwen3.8-27b; gpt-oss chỉ nhận chữ)
 const GROQ_MODELS = [
   { id: 'openai/gpt-oss-120b', them: { reasoning_effort: 'low' } },
-  { id: 'qwen/qwen3.8-27b', them: { reasoning_format: 'hidden' } },
+  { id: 'qwen/qwen3.8-27b', them: { reasoning_format: 'hidden' }, docAnh: true },
   { id: 'openai/gpt-oss-20b', them: { reasoning_effort: 'low' } },
 ]
+const GROQ_STT_URL = 'https://api.groq.com/openai/v1/audio/transcriptions'
 
 export function geminiCoCauHinh() {
   return !!API_KEY
@@ -115,13 +118,32 @@ async function goiGroq(body) {
   return res.json()
 }
 
-async function groqChat(system, lichSu) {
-  const messages = [
+// contents Gemini → messages OpenAI (ảnh inline_data → image_url data URI)
+function sangMessagesGroq(system, lichSu) {
+  return [
     { role: 'system', content: system },
-    ...toContents(lichSu).map((c) => ({ role: c.role === 'model' ? 'assistant' : 'user', content: c.parts[0].text })),
+    ...toContents(lichSu).map((c) => {
+      const role = c.role === 'model' ? 'assistant' : 'user'
+      const anh = c.parts.find((p) => p.inline_data)
+      const text = c.parts.filter((p) => p.text).map((p) => p.text).join('\n')
+      if (!anh) return { role, content: text }
+      return {
+        role,
+        content: [
+          { type: 'text', text },
+          { type: 'image_url', image_url: { url: `data:${anh.inline_data.mime_type};base64,${anh.inline_data.data}` } },
+        ],
+      }
+    }),
   ]
+}
+
+async function groqChat(system, lichSu) {
+  const messages = sangMessagesGroq(system, lichSu)
+  const coAnh = messages.some((m) => Array.isArray(m.content))
+  const dsModel = GROQ_MODELS.filter((m) => !coAnh || m.docAnh)
   let loiCuoi
-  for (const { id, them } of GROQ_MODELS) {
+  for (const { id, them } of dsModel) {
     const khoa = 'groq:' + id
     if (_modelDaGo.has(khoa) || (_hetQuotaDen.get(khoa) || 0) > Date.now()) continue
     try {
@@ -155,14 +177,18 @@ export function systemPrompt({ khoNoiBo = '', triThuc = [] } = {}) {
   const dinhChinh = triThuc.filter((t) => t.loai === 'sua_sai')
   const thamKhao = triThuc.filter((t) => t.loai !== 'sua_sai')
 
-  return `Bạn là Maika — CHUYÊN GIA KỸ THUẬT CHỐNG THẤM & VẬT LIỆU XÂY DỰNG của Vật Liệu Nhà (thuộc Khôi Anh Home Center). Bạn là trợ lý nội bộ cho đội ngũ kinh doanh.
+  return `Bạn là Maika — CHUYÊN GIA KỸ THUẬT CHỐNG THẤM & VẬT LIỆU XÂY DỰNG của Vật Liệu Nhà. Bạn là trợ lý nội bộ cho đội ngũ kinh doanh.
 
 NGUYÊN TẮC TRẢ LỜI:
 - Tiếng Việt, thông mượt, chính xác, đi thẳng vấn đề; dùng gạch đầu dòng + số liệu (định mức, tỷ lệ pha, độ ẩm, nhiệt độ, thời gian khô) khi phù hợp.
-- Thứ tự ưu tiên nguồn: (1) ĐÍNH CHÍNH TỪ ADMIN → (2) TRI THỨC NỘI BỘ / WEBSITE vatlieunha.vn → (3) kiến thức chuyên môn của bạn (Gemini).
+- Thứ tự ưu tiên nguồn: (1) ĐÍNH CHÍNH TỪ ADMIN → (2) TRI THỨC NỘI BỘ / WEBSITE vatlieunha.vn → (3) kiến thức chuyên môn của bạn.
+- KHÔNG CÓ DỮ LIỆU THÌ NÓI DỨT KHOÁT: câu hỏi về một SẢN PHẨM / THƯƠNG HIỆU / MÃ HÀNG / chủ đề cụ thể mà KHÔNG xuất hiện trong đính chính, tri thức truy xuất hay kho sản phẩm nội bộ bên dưới (vd "Luân lotus") → chỉ trả lời: "Maika chưa có dữ liệu về vấn đề này." (có thể thêm 1 câu xin tên đầy đủ, ảnh bao bì hoặc tài liệu). TUYỆT ĐỐI không đoán, không giới thiệu sản phẩm khác thay thế, không kể lan man.
+- Câu hỏi kỹ thuật chung (nguyên nhân thấm/nứt, quy trình thi công, xử lý bề mặt, phân tích ảnh hiện trường) → được dùng kiến thức chuyên môn để trả lời.
+- Tri thức truy xuất chỉ là "có thể liên quan" — mẩu nào không đúng chủ đề câu hỏi thì BỎ QUA, không nhắc tới.
+- KHÔNG chèn đường link, URL, danh sách nguồn hay tên tệp tài liệu vào câu trả lời. Chỉ khi người dùng yêu cầu "cung cấp tài liệu chi tiết" / xin link / xin TDS thì mới nói tài liệu có ở mục "Tài liệu" bên dưới câu trả lời.
 - Thiếu dữ kiện quan trọng (bề mặt, độ ẩm, trong/ngoài trời, hạng mục, diện tích, ngân sách) → HỎI LẠI ngắn gọn trước khi chốt phương án.
 - Khi tư vấn giải pháp: nêu (1) chẩn đoán/giải pháp, (2) sản phẩm phù hợp + định mức, (3) tỷ lệ pha & trình tự thi công, (4) ⚠️ cảnh báo bắt buộc (vd: CẤM lăn PU khi sàn ẩm > 8%).
-- TRẢ LỜI ĐÚNG SẢN PHẨM KHÁCH HỎI. Sản phẩm chưa có trong tri thức nội bộ → dùng kiến thức thực tế về CHÍNH sản phẩm/thương hiệu đó; TUYỆT ĐỐI không lái sang sản phẩm khác. Không chắc → nói thẳng là chưa đủ dữ liệu, không bịa.
+- Khi người dùng GỬI ẢNH: mô tả ngắn điều thấy được (loại hư hỏng, vị trí, mức độ — vd nứt chân chim / nứt kết cấu, thấm, bong tróc, nấm mốc), chẩn đoán nguyên nhân khả dĩ, rồi đề xuất giải pháp thi công + vật liệu. Ảnh không đủ rõ → nói rõ cần chụp thêm góc nào.
 - Khi người dùng chỉnh lại ("tôi hỏi X chứ không phải Y") → hiểu ngữ cảnh và sửa ngay.
 - Khi xưng danh với khách, chỉ dùng thương hiệu "Vật Liệu Nhà".
 ${
@@ -184,13 +210,58 @@ KHO SẢN PHẨM NỘI BỘ:
 ${khoNoiBo}`
 }
 
-// Lịch sử [{tu:'user'|'maika', text}] → contents của Gemini (bắt đầu bằng lượt user)
+// Lịch sử [{tu:'user'|'maika', text, anh?: {mime, base64}, coAnh?}] → contents của Gemini.
+// Chỉ tin nhắn đang hỏi mới mang dữ liệu ảnh (anh); ảnh cũ chỉ ghi chú "(đã gửi ảnh)" cho đỡ tốn quota.
 function toContents(lichSu) {
   const contents = (lichSu || [])
-    .filter((m) => m.text)
-    .map((m) => ({ role: m.tu === 'user' ? 'user' : 'model', parts: [{ text: m.text }] }))
+    .filter((m) => m.text || m.anh)
+    .map((m) => {
+      const text = (m.coAnh && !m.anh ? '(Người dùng đã gửi 1 ảnh ở tin nhắn này) ' : '') + (m.text || 'Phân tích ảnh này giúp tôi.')
+      const parts = m.anh ? [{ inline_data: { mime_type: m.anh.mime, data: m.anh.base64 } }, { text }] : [{ text }]
+      return { role: m.tu === 'user' ? 'user' : 'model', parts }
+    })
   while (contents.length && contents[0].role !== 'user') contents.shift()
   return contents
+}
+
+// ============================================================
+//  GIỌNG NÓI → CHỮ: Groq Whisper (free, nhanh) → dự phòng Gemini (hiểu âm thanh)
+// ============================================================
+export async function chuyenGiongNoi(blob) {
+  let loiCuoi
+  if (GROQ_KEY) {
+    try {
+      const fd = new FormData()
+      const duoi = (blob.type.split('/')[1] || 'webm').split(';')[0]
+      fd.append('file', blob, `ghi-am.${duoi === 'mp4' ? 'm4a' : duoi}`)
+      fd.append('model', 'whisper-large-v3-turbo')
+      fd.append('language', 'vi')
+      fd.append('response_format', 'json')
+      // Groq cho phép CORS → fetch chạy được cả trên .exe lẫn WebView Android
+      const res = await fetch(GROQ_STT_URL, { method: 'POST', headers: { Authorization: `Bearer ${GROQ_KEY}` }, body: fd, signal: AbortSignal.timeout?.(45000) })
+      if (!res.ok) throw new GeminiLoi(res.status, await res.text().catch(() => ''), 'Groq Whisper')
+      const text = ((await res.json()).text || '').trim()
+      if (text) return text
+    } catch (e) {
+      loiCuoi = e
+      console.warn('[Maika] Whisper lỗi → thử Gemini:', e.message)
+    }
+  }
+  if (API_KEY) {
+    return sinhNoiDung({
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { inline_data: { mime_type: (blob.type || 'audio/webm').split(';')[0], data: await blobSangBase64(blob) } },
+            { text: 'Chép lại NGUYÊN VĂN lời nói tiếng Việt trong đoạn ghi âm. Chỉ trả về lời thoại, không thêm gì khác.' },
+          ],
+        },
+      ],
+      generationConfig: { temperature: 0, maxOutputTokens: 2048 },
+    })
+  }
+  throw loiCuoi || new Error('Chưa cấu hình dịch vụ chuyển giọng nói (VITE_GROQ_API_KEY / VITE_GEMINI_API_KEY)')
 }
 
 // Chat: gửi TOÀN BỘ lịch sử + system prompt (đã nhúng tri thức RAG)

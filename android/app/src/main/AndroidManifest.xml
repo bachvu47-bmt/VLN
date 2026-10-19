@@ -34,4 +34,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Cho phép tải & tự cài bản cập nhật .apk trong app -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- "Giữ để nói" gửi âm thoại cho Maika (WebView getUserMedia → Capacitor xin quyền lúc chạy) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 </manifest>
