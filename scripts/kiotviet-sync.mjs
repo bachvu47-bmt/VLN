@@ -66,7 +66,7 @@ const sanPham = (await layHet('/products?includeInventory=true&isActive=true'))
   }))
 
 const moc = new Date(Date.now() - SO_NGAY_HOA_DON * 864e5).toISOString().slice(0, 10)
-const hoaDon = (await layHet(`/invoices?fromPurchaseDate=${moc}&orderBy=purchaseDate&orderDirection=Desc&includePayment=false`))
+const hoaDon = (await layHet(`/invoices?fromPurchaseDate=${moc}&orderBy=purchaseDate&orderDirection=Desc&includePayment=true`))
   .filter((i) => i.status !== 2) // bỏ hoá đơn đã huỷ
   .map((i) => ({
     ma: i.code,
@@ -78,6 +78,8 @@ const hoaDon = (await layHet(`/invoices?fromPurchaseDate=${moc}&orderBy=purchase
     tt: i.statusValue || '',
     nv: (i.soldByName || '').replace(/^sales\d+\s*-\s*/i, ''),
     ct: (i.invoiceDetails || []).map((d) => [d.productCode, d.productName, d.quantity, d.price]),
+    // Thanh toán: [[phương thức (Cash|Transfer|Card|...), số tiền]] → Báo cáo tách Tiền mặt / Chuyển khoản
+    tt: (i.payments || []).filter((p) => p.status !== 2).map((p) => [p.method || '', p.amount || 0]),
   }))
 
 const khach = (await layHet('/customers?orderBy=createdDate&orderDirection=Desc')).map((c) => ({
