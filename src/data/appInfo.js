@@ -3,7 +3,7 @@
 // ============================================================
 
 // Phiên bản hiện đang chạy trên thiết bị
-export const PHIEN_BAN_HIEN_TAI = '1.1.9'
+export const PHIEN_BAN_HIEN_TAI = '1.1.10'
 
 // ---- Cấu hình GitHub Releases (nguồn cập nhật OTA) ----
 // ⚠️ Đổi owner/repo thành repo GitHub thật của bạn.
@@ -18,12 +18,14 @@ export const GITHUB_API_LATEST = `https://api.github.com/repos/${GITHUB_REPO.own
 // Dữ liệu "server nội bộ" trả về khi kiểm tra cập nhật (mock).
 // Trong thực tế, dữ liệu này đến từ GitHub Releases API ở trên.
 export const BAN_CAP_NHAT_SERVER = {
-  phienBan: '1.1.9',
+  phienBan: '1.1.10',
   ngayPhatHanh: '2026-10-19',
   batBuoc: false, // true => chặn dùng app cho tới khi cập nhật
-  tieuDe: 'Sửa lỗi Maika báo lỗi khi Google quá tải / hết lượt miễn phí',
+  tieuDe: 'Maika thêm nguồn AI Groq miễn phí — hết lượt Gemini vẫn trả lời',
   kichThuocMB: { exe: 108, apk: 3.4 },
   changelog: [
+    { loai: 'moi', noiDung: 'Maika tự chuyển sang Groq (miễn phí, ~1.000 câu/ngày) khi Gemini hết 20 lượt/ngày/model hoặc gặp sự cố.' },
+    { loai: 'caitien', noiDung: 'Không chờ quá 30 giây khi máy chủ Google bị treo — tự đổi sang model khác.' },
     { loai: 'sualoi', noiDung: 'Maika tự chuyển sang model Gemini dự phòng khi model chính quá tải (503), hết lượt free trong ngày (429), bị gỡ (404) hoặc mạng chập chờn.' },
     { loai: 'moi', noiDung: 'Maika tự học: Admin sửa sai ngay trong khung chat, Maika áp dụng tức thì; nhân viên báo sai → Admin duyệt.' },
     { loai: 'moi', noiDung: 'Cổng AI Admin: Gemini phân tích PDF/ảnh/ghi chú thành tri thức, duyệt rồi nạp vào bộ nhớ Maika.' },

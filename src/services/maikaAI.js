@@ -8,7 +8,7 @@
 // ============================================================
 import { SAN_PHAM } from '../data/mockData'
 import { laySanPhamWeb } from '../data/productStore'
-import { geminiChat, geminiCoCauHinh } from './maikaChatbot'
+import { aiCoCauHinh, geminiChat } from './maikaChatbot'
 import { truyXuat } from './vectorStore'
 
 function coMang() {
@@ -17,7 +17,7 @@ function coMang() {
 
 export function maikaCheDo() {
   if (!coMang()) return 'offline'
-  if (geminiCoCauHinh()) return 'gemini'
+  if (aiCoCauHinh()) return 'ai'
   return 'chuaCauHinh'
 }
 
@@ -87,15 +87,15 @@ export async function maikaChatAI(lichSu) {
 
   try {
     const thamKhao = await truyXuat(cauTruyVan(lichSu), { k: 6 })
-    const text = (await geminiChat(lichSu, { khoNoiBo: khoNoiBo(), triThuc: thamKhao })) || '(Maika chưa có câu trả lời)'
-    return { text, sp: timSP(cauHoiCuoi), nguon: nt, thamKhao }
+    const { text, nhaCungCap } = await geminiChat(lichSu, { khoNoiBo: khoNoiBo(), triThuc: thamKhao })
+    return { text: text || '(Maika chưa có câu trả lời)', sp: timSP(cauHoiCuoi), nguon: nhaCungCap, thamKhao }
   } catch (e) {
     console.warn('[Maika AI] Lỗi gọi AI:', e.message)
     if (!coMang()) {
       return { text: 'Mất kết nối mạng khi đang hỏi Maika. Vui lòng kiểm tra mạng và thử lại.', nguon: 'offline' }
     }
     if (e.status === 429) {
-      return { text: `Maika đang bị Google giới hạn tần suất (gói free). Vui lòng thử lại sau ~${e.choGiay || 30} giây.`, nguon: 'loi', loi: true }
+      return { text: `Maika đã dùng hết lượt AI miễn phí (Gemini + Groq) trong lúc này. Vui lòng thử lại sau ~${Math.min(e.choGiay || 30, 3600)} giây.`, nguon: 'loi', loi: true }
     }
     if (e.status >= 500 || e.name === 'TimeoutError' || e instanceof TypeError) {
       return { text: 'Máy chủ Google Gemini đang quá tải (Maika đã thử tất cả model dự phòng). Vui lòng hỏi lại sau 1–2 phút.', nguon: 'loi', loi: true }

@@ -1,7 +1,8 @@
 // ============================================================
 //  MAIKA CHATBOT — đấu nối trực tiếp Google Gemini API (REST, free)
 //  - Chat: model Flash (mặc định gemini-flash-latest) + system prompt chuyên gia
-//    + tri thức truy xuất từ bộ nhớ vector (RAG).
+//    + tri thức truy xuất từ bộ nhớ vector (RAG). Gemini free chỉ ~20 câu/ngày/model
+//    → hết lượt thì chuyển sang Groq (free ~1.000 câu/ngày/model, VITE_GROQ_API_KEY).
 //  - Embedding: gemini-embedding-001 → vector cho bộ nhớ tự học.
 //  - Phân tích tài liệu (text/PDF/ảnh) → JSON tri thức cho màn AI Admin.
 //  Native (.apk) dùng CapacitorHttp; .exe/web dùng fetch (Gemini cho phép CORS).
@@ -18,30 +19,49 @@ const BASE = 'https://generativelanguage.googleapis.com/v1beta'
 const MODEL_DU_PHONG = ['gemini-flash-latest', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3-flash-preview', 'gemini-flash-lite-latest']
 export const SO_CHIEU_VECTOR = 768
 
+// Groq (OpenAI-compatible) — dự phòng khi Gemini hết lượt free. Mỗi model 1.000 câu/ngày,
+// nhưng chỉ 8.000 token/phút → gửi prompt rút gọn.
+const GROQ_KEY = import.meta.env.VITE_GROQ_API_KEY || ''
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
+const GROQ_MODELS = [
+  { id: 'openai/gpt-oss-120b', them: { reasoning_effort: 'low' } },
+  { id: 'qwen/qwen3.8-27b', them: { reasoning_format: 'hidden' } },
+  { id: 'openai/gpt-oss-20b', them: { reasoning_effort: 'low' } },
+]
+
 export function geminiCoCauHinh() {
   return !!API_KEY
 }
 
-// Lỗi Gemini có kèm mã HTTP + thời gian chờ khi bị giới hạn tần suất (429)
+export function aiCoCauHinh() {
+  return !!(API_KEY || GROQ_KEY)
+}
+
+// Lỗi AI có kèm mã HTTP + thời gian chờ khi bị giới hạn tần suất (429)
 export class GeminiLoi extends Error {
-  constructor(status, chiTiet) {
-    super(`Gemini HTTP ${status}: ${String(chiTiet).slice(0, 200)}`)
+  constructor(status, chiTiet, nhaCungCap = 'Gemini', choGiay) {
+    super(`${nhaCungCap} HTTP ${status}: ${String(chiTiet).slice(0, 200)}`)
     this.status = status
     const m = String(chiTiet).match(/"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/)
-    this.choGiay = m ? Math.ceil(Number(m[1])) : status === 429 ? 30 : 0
+    this.choGiay = choGiay || (m ? Math.ceil(Number(m[1])) : status === 429 ? 30 : 0)
   }
+}
+
+function laNative() {
+  return typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.()
 }
 
 async function goi(duongDan, body) {
   const url = `${BASE}/${duongDan}`
   const headers = { 'Content-Type': 'application/json', 'x-goog-api-key': API_KEY }
-  if (typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.()) {
+  if (laNative()) {
     const { CapacitorHttp } = await import('@capacitor/core')
-    const res = await CapacitorHttp.post({ url, headers, data: body })
+    const res = await CapacitorHttp.post({ url, headers, data: body, connectTimeout: 15000, readTimeout: 30000 })
     if (res.status >= 400) throw new GeminiLoi(res.status, JSON.stringify(res.data))
     return typeof res.data === 'string' ? JSON.parse(res.data) : res.data
   }
-  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout?.(60000) }) // WebView Android cũ không có timeout()
+  // Google đôi khi treo request → 30s chưa xong thì bỏ, chuyển model khác (WebView Android cũ không có timeout())
+  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout?.(30000) })
   if (!res.ok) throw new GeminiLoi(res.status, await res.text().catch(() => ''))
   return res.json()
 }
@@ -77,7 +97,55 @@ async function sinhNoiDung(body) {
       }
     }
   }
-  throw loiCuoi
+  // conDung rỗng (mọi model đều đang hết lượt) → vẫn ném lỗi 429 có nghĩa
+  throw loiCuoi || new GeminiLoi(429, 'Tất cả model Gemini đã hết lượt free hôm nay')
+}
+
+// ---- Groq: chat/completions (OpenAI-compatible) ----
+async function goiGroq(body) {
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${GROQ_KEY}` }
+  if (laNative()) {
+    const { CapacitorHttp } = await import('@capacitor/core')
+    const res = await CapacitorHttp.post({ url: GROQ_URL, headers, data: body })
+    if (res.status >= 400) throw new GeminiLoi(res.status, JSON.stringify(res.data), 'Groq', Number(res.headers?.['retry-after']) || 0)
+    return typeof res.data === 'string' ? JSON.parse(res.data) : res.data
+  }
+  const res = await fetch(GROQ_URL, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout?.(60000) })
+  if (!res.ok) throw new GeminiLoi(res.status, await res.text().catch(() => ''), 'Groq', Number(res.headers.get('retry-after')) || 0)
+  return res.json()
+}
+
+async function groqChat(system, lichSu) {
+  const messages = [
+    { role: 'system', content: system },
+    ...toContents(lichSu).map((c) => ({ role: c.role === 'model' ? 'assistant' : 'user', content: c.parts[0].text })),
+  ]
+  let loiCuoi
+  for (const { id, them } of GROQ_MODELS) {
+    const khoa = 'groq:' + id
+    if (_modelDaGo.has(khoa) || (_hetQuotaDen.get(khoa) || 0) > Date.now()) continue
+    try {
+      const data = await goiGroq({ model: id, messages, temperature: 0.4, max_tokens: 2048, ...them })
+      const text = (data?.choices?.[0]?.message?.content || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim()
+      if (!text) throw new Error('Groq không trả nội dung')
+      return text
+    } catch (e) {
+      loiCuoi = e
+      if (!NEN_DOI_MODEL(e)) throw e
+      if (e.status === 404) _modelDaGo.add(khoa)
+      if (e.status === 429) _hetQuotaDen.set(khoa, Date.now() + Math.max(e.choGiay, 10) * 1000)
+      console.warn(`[Maika] Groq ${id} lỗi ${e.status || e.name} → thử model khác`)
+    }
+  }
+  throw loiCuoi || new GeminiLoi(429, 'Các model Groq đang hết lượt', 'Groq', 30)
+}
+
+// Groq chỉ 8.000 token/phút → bớt tri thức truy xuất (4 mẩu, mỗi mẩu ≤ 700 ký tự)
+function rutGonNguCanh({ khoNoiBo = '', triThuc = [] } = {}) {
+  return {
+    khoNoiBo: khoNoiBo.slice(0, 3000),
+    triThuc: triThuc.slice(0, 4).map((t) => ({ ...t, noiDung: t.noiDung.slice(0, 700) })),
+  }
 }
 
 // ============================================================
@@ -126,13 +194,24 @@ function toContents(lichSu) {
 }
 
 // Chat: gửi TOÀN BỘ lịch sử + system prompt (đã nhúng tri thức RAG)
+// Gemini trước (tiếng Việt tốt nhất) → hết lượt/lỗi tạm thời thì Groq.
+// Trả về { text, nhaCungCap: 'gemini' | 'groq' }
 export async function geminiChat(lichSu, nguCanh) {
-  return sinhNoiDung({
-    systemInstruction: { parts: [{ text: systemPrompt(nguCanh) }] },
-    contents: toContents(lichSu),
-    // Model Flash mới "suy nghĩ" trước khi trả lời → chừa đủ token
-    generationConfig: { temperature: 0.4, maxOutputTokens: 8192 },
-  })
+  if (API_KEY) {
+    try {
+      const text = await sinhNoiDung({
+        systemInstruction: { parts: [{ text: systemPrompt(nguCanh) }] },
+        contents: toContents(lichSu),
+        // Model Flash mới "suy nghĩ" trước khi trả lời → chừa đủ token
+        generationConfig: { temperature: 0.4, maxOutputTokens: 8192 },
+      })
+      return { text, nhaCungCap: 'gemini' }
+    } catch (e) {
+      if (!GROQ_KEY) throw e // kể cả key Gemini bị thu hồi (400/403) → vẫn còn Groq đỡ
+      console.warn('[Maika] Gemini không dùng được → chuyển sang Groq:', e.message)
+    }
+  }
+  return { text: await groqChat(systemPrompt(rutGonNguCanh(nguCanh)), lichSu), nhaCungCap: 'groq' }
 }
 
 // ============================================================
