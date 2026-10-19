@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { DON_HANG } from '../data/mockData'
 import { maikaPhanTichDon } from '../services/maika'
 import { useToast } from '../context/ToastContext'
+import { useAuth } from '../context/AuthContext'
+import { taoChamSocSauBan } from '../services/troLyChuDong'
+import { nhanThoiGian } from '../data/viecStore'
 
 const MAU_TT = {
   'Mới': 'bg-blue-100 text-blue-700',
@@ -12,8 +15,17 @@ const MAU_TT = {
 function CardDon({ don }) {
   const [mo, setMo] = useState(false)
   const [daGui, setDaGui] = useState({})
+  const [daHen, setDaHen] = useState(false)
   const toast = useToast()
+  const { user } = useAuth()
   const buoc = maikaPhanTichDon(don)
+
+  // Trợ lý chủ động: hẹn hỏi thăm khách sau bán, Maika nhắc đúng ngày
+  const henChamSoc = async () => {
+    const v = await taoChamSocSauBan({ don, nguoiTao: user.id })
+    setDaHen(true)
+    toast(`Maika sẽ nhắc hỏi thăm ${don.khach} — ${nhanThoiGian(v.hanLuc)}`, 'success')
+  }
 
   const gui = (ma, loai, nhan) => {
     setDaGui((d) => ({ ...d, [`${ma}-${loai}`]: true }))
@@ -64,6 +76,10 @@ function CardDon({ don }) {
               </div>
             ))}
           </div>
+          <button onClick={henChamSoc} disabled={daHen}
+            className={`tap mt-3 w-full rounded-xl border py-2.5 text-xs font-bold ${daHen ? 'border-green-200 bg-green-50 text-green-700' : 'border-brand-200 bg-white text-brand-700'}`}>
+            {daHen ? '✓ Đã hẹn — Maika sẽ nhắc' : '⏰ Hẹn hỏi thăm khách sau 3 ngày'}
+          </button>
           <p className="mt-3 text-center text-[10px] text-gray-400">Gửi qua Cổng Server tự động → Zalo / SMS / Email khách hàng</p>
         </div>
       )}

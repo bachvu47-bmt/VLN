@@ -8,6 +8,8 @@ const DEV_URL = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173'
 // Tắt tăng tốc phần cứng — tránh màn hình trống/1 màu trên máy có driver GPU lỗi,
 // máy ảo, hoặc chạy qua Remote Desktop (buộc dùng software rendering ổn định hơn).
 app.disableHardwareAcceleration()
+// Thông báo Windows (Maika nhắc việc) hiển thị đúng tên/biểu tượng app
+app.setAppUserModelId('vn.vatlieunha.sales')
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
 
 // ---- Auto Update (electron-updater) ----

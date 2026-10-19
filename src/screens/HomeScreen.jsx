@@ -1,4 +1,6 @@
-import { DON_HANG, SAN_PHAM, SP_GAN_DAY, VIEC_HOM_NAY } from '../data/mockData'
+import { useState } from 'react'
+import { DON_HANG, SAN_PHAM, SP_GAN_DAY } from '../data/mockData'
+import { DanhSachViec, MaikaNhacHomNay, ThemViecSheet } from '../components/TroLyChuDong'
 
 function Ico({ d, className = 'h-6 w-6' }) {
   return (
@@ -15,13 +17,8 @@ const SHORTCUTS = [
   { ten: 'Tư vấn khách hàng', d: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z M2.5 20a6.5 6.5 0 0 1 13 0 M17 11a3 3 0 1 0 0-6 M21.5 20a5.5 5.5 0 0 0-5-5.5', tab: 'khach' },
 ]
 
-const VIEC_ICON = {
-  goi: 'M3 5a2 2 0 0 1 2-2h2l2 5-2 1a12 12 0 0 0 6 6l1-2 5 2v2a2 2 0 0 1-2 2A16 16 0 0 1 3 5Z',
-  taolieu: 'M8 3h8l4 4v14H4V5a2 2 0 0 1 2-2h2 M9 13h6 M9 17h4',
-  hen: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z M5 20a7 7 0 0 1 14 0',
-}
-
 export default function HomeScreen({ onTab, onMo }) {
+  const [themViec, setThemViec] = useState(null) // 'viec' | 'baogia'
   const donTuVan = DON_HANG[0]
   const sp0 = SAN_PHAM.find((s) => s.ma === donTuVan.sanPham[0].ma)
   const ganDay = SP_GAN_DAY.map((ma) => SAN_PHAM.find((s) => s.ma === ma)).filter(Boolean)
@@ -37,6 +34,12 @@ export default function HomeScreen({ onTab, onMo }) {
         <span className="flex-1 text-sm text-gray-400">Tìm sản phẩm, kỹ thuật, công dụng...</span>
         <Ico d="M4 8V6a2 2 0 0 1 2-2h2 M16 4h2a2 2 0 0 1 2 2v2 M20 16v2a2 2 0 0 1-2 2h-2 M8 20H6a2 2 0 0 1-2-2v-2" className="h-5 w-5 text-brand-600" />
       </button>
+
+      {/* Trợ lý chủ động — Maika nhắc việc hôm nay */}
+      <MaikaNhacHomNay onThem={setThemViec} />
+
+      {/* Việc cần làm (dữ liệu thật, Maika tự nhắc đúng hạn) */}
+      <DanhSachViec onThem={setThemViec} />
 
       {/* 4 shortcut */}
       <div className="grid grid-cols-4 gap-2.5">
@@ -103,30 +106,7 @@ export default function HomeScreen({ onTab, onMo }) {
         </div>
       </div>
 
-      {/* Việc cần làm hôm nay */}
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-base font-black text-gray-900">Việc cần làm hôm nay</h3>
-          <button className="text-xs font-semibold text-brand-600">Xem tất cả ›</button>
-        </div>
-        <div className="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-100 bg-white">
-          {VIEC_HOM_NAY.map((v) => (
-            <div key={v.id} className="flex items-center gap-3 p-3">
-              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600">
-                <Ico d={VIEC_ICON[v.loai]} className="h-5 w-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-bold text-gray-900">{v.tieuDe}</div>
-                <div className="truncate text-[11px] text-gray-500">{v.phu}</div>
-              </div>
-              <div className="flex items-center gap-1 text-xs font-semibold text-gray-500">
-                {v.gio}
-                <span className="text-gray-300">›</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      {themViec && <ThemViecSheet cheDo={themViec} onClose={() => setThemViec(null)} />}
     </div>
   )
 }

@@ -3,7 +3,7 @@
 // ============================================================
 
 // Phiên bản hiện đang chạy trên thiết bị
-export const PHIEN_BAN_HIEN_TAI = '1.1.11'
+export const PHIEN_BAN_HIEN_TAI = '1.1.12'
 
 // ---- Cấu hình GitHub Releases (nguồn cập nhật OTA) ----
 // ⚠️ Đổi owner/repo thành repo GitHub thật của bạn.
@@ -18,12 +18,16 @@ export const GITHUB_API_LATEST = `https://api.github.com/repos/${GITHUB_REPO.own
 // Dữ liệu "server nội bộ" trả về khi kiểm tra cập nhật (mock).
 // Trong thực tế, dữ liệu này đến từ GitHub Releases API ở trên.
 export const BAN_CAP_NHAT_SERVER = {
-  phienBan: '1.1.11',
-  ngayPhatHanh: '2026-10-20',
+  phienBan: '1.1.12',
+  ngayPhatHanh: '2026-10-19',
   batBuoc: false, // true => chặn dùng app cho tới khi cập nhật
-  tieuDe: 'Maika xem ảnh, nghe giọng nói & hết trả lời lan man',
-  kichThuocMB: { exe: 108, apk: 3.4 },
+  tieuDe: 'Trợ lý chủ động: Maika tự nhắc follow-up báo giá & lịch hẹn',
+  kichThuocMB: { exe: 108, apk: 3.6 },
   changelog: [
+    { loai: 'moi', noiDung: 'Màn Hôm nay: "Maika nhắc hôm nay" tóm tắt việc quá hạn, việc trong ngày, báo giá cần follow-up.' },
+    { loai: 'moi', noiDung: 'Gõ hoặc nói "Nhắc tôi gọi chị Mai 10h sáng mai" — Maika tự lên lịch và báo đúng giờ (Android báo cả khi đã tắt app).' },
+    { loai: 'moi', noiDung: '"Vừa gửi báo giá" → tự tạo lịch follow-up; Sau bán → hẹn hỏi thăm khách sau 3 ngày; Maika soạn sẵn tin nhắn Zalo gửi khách.' },
+    { loai: 'caitien', noiDung: 'Câu hỏi chữ dùng Groq (nhiều lượt miễn phí), dành Gemini cho phân tích ảnh hiện trường.' },
     { loai: 'moi', noiDung: 'Gửi ảnh cho Maika (chụp hoặc chọn từ thư viện) — phân tích vết nứt, thấm, bong tróc và đề xuất giải pháp thi công.' },
     { loai: 'moi', noiDung: 'Giữ nút micro để nói (như Zalo) — Maika chuyển giọng nói thành chữ rồi trả lời.' },
     { loai: 'moi', noiDung: 'AI Admin: tab "Phê duyệt Multimodal" duyệt thẻ tri thức kèm ảnh/ghi âm trước khi nạp cho Maika.' },

@@ -8,6 +8,8 @@ import { MAIKA, MAIKA_GOI_Y, maikaChao } from '../services/maika'
 import { maikaChatAI, maikaCheDo } from '../services/maikaAI'
 import { chuyenGiongNoi } from '../services/maikaChatbot'
 import { adminSuaSai, deXuatSuaSai, deXuatTriThucMedia } from '../services/vectorStore'
+import { huyNhac, laCauTaoViec, tachViecTuCau, taoViec } from '../services/troLyChuDong'
+import { nhanThoiGian, xoaViec } from '../data/viecStore'
 
 let _mid = 0
 
@@ -163,6 +165,17 @@ export default function TuVanAIScreen({ onClose, onMo }) {
   // Gửi lịch sử cho Maika — chỉ tin nhắn cuối mang dữ liệu ảnh, ảnh cũ bỏ base64 cho đỡ tốn quota
   const hoiMaika = async (lichSu, tinHoi) => {
     setDangGo(true)
+    // "Nhắc tôi gọi chị Mai 10h mai" (gõ hoặc nói) → trợ lý chủ động lên lịch nhắc
+    if (!tinHoi.anh && laCauTaoViec(tinHoi.text)) {
+      try {
+        const v = await taoViec(await tachViecTuCau(tinHoi.text, user.id))
+        setMsgs((m) => [...m, { id: ++_mid, tu: 'maika', viecMoi: v, text: `✅ Đã lên lịch nhắc: ${v.tieuDe}\n⏰ ${nhanThoiGian(v.hanLuc)}${v.khach ? `\n👤 ${v.khach}` : ''}\nMaika sẽ báo bạn đúng giờ — xem ở màn Hôm nay.` }])
+        setDangGo(false)
+        return
+      } catch {
+        /* không tách được việc → trả lời như câu hỏi thường */
+      }
+    }
     const gon = lichSu.map((m) => (m.id === tinHoi.id ? m : { ...m, anh: undefined }))
     const tl = await maikaChatAI(gon)
     setDangGo(false)
@@ -344,8 +357,12 @@ export default function TuVanAIScreen({ onClose, onMo }) {
                     </button>
                   )}
                   <TaiLieu ds={m.taiLieu} />
+                  {m.viecMoi && !m.daHuyViec && (
+                    <button onClick={() => huyNhac(m.viecMoi).then(() => xoaViec(m.viecMoi.id)).then(() => capNhatTin(m.id, { daHuyViec: true, text: 'Đã huỷ lịch nhắc.' }))}
+                      className="tap mt-2 block text-[11px] font-semibold text-gray-500 underline">Huỷ nhắc này</button>
+                  )}
                 </div>
-                {hoi && !m.loi && !m.daXuLy && (
+                {hoi && !m.loi && !m.daXuLy && !m.viecMoi && (
                   <div className="mt-1 flex flex-wrap items-center gap-x-3">
                     <SuaSai cauHoi={cauHoi} traLoiSai={m.text} media={hoi.media || []} sku={hoi.sku || ''}
                       onXong={(loai) => capNhatTin(m.id, { daXuLy: loai })} />

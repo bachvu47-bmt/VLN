@@ -7,6 +7,8 @@ import { kiemTraGitHub } from './services/githubUpdater'
 import { dongBoVaHoc } from './services/webSyncService'
 import { laySanPhamWeb, sanSang as khoSanPhamSanSang } from './data/productStore'
 import { datQuyenHocWeb, hocNen } from './services/vectorStore'
+import { batDauTheoDoi, dongBoLichNhac, xinQuyenThongBao } from './services/troLyChuDong'
+import { useToast } from './context/ToastContext'
 import LoginScreen from './screens/LoginScreen'
 import HomeScreen from './screens/HomeScreen'
 import LookupScreen from './screens/LookupScreen'
@@ -36,6 +38,30 @@ export default function App() {
   const [capNhat, setCapNhat] = useState(null)
   const [hienCapNhat, setHienCapNhat] = useState(false)
   const [coBaoMoi, setCoBaoMoi] = useState(false)
+  const toast = useToast()
+
+  // Trợ lý chủ động: xin quyền thông báo, đặt lại lịch nhắc (Android), đếm việc đến hạn khi app mở
+  useEffect(() => {
+    if (!user) return
+    xinQuyenThongBao()
+    dongBoLichNhac(user.id)
+    const dung = batDauTheoDoi(user.id, (v) => {
+      toast(`⏰ Maika nhắc: ${v.tieuDe}`, 'info')
+      setTab('home')
+    })
+    // Android: chạm vào thông báo nhắc việc → mở màn Hôm nay
+    let listener
+    if (window.Capacitor?.isNativePlatform?.()) {
+      import('@capacitor/local-notifications')
+        .then(({ LocalNotifications }) => LocalNotifications.addListener('localNotificationActionPerformed', () => setTab('home')))
+        .then((l) => (listener = l))
+        .catch(() => {})
+    }
+    return () => {
+      dung()
+      listener?.remove?.()
+    }
+  }, [user, toast])
 
   // Tự động kiểm tra bản mới trên GitHub (khi mở app + định kỳ 30 phút)
   useEffect(() => {

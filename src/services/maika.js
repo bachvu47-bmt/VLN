@@ -15,9 +15,9 @@ export const MAIKA = {
 
 export const MAIKA_GOI_Y = [
   'SikaLatex dùng để làm gì?',
-  'Tỷ lệ pha Maxbond thế nào?',
   'Chống thấm sàn mái nên dùng gì?',
   'Lưu ý khi thi công PU?',
+  'Nhắc tôi gọi lại khách 9h sáng mai',
 ]
 
 export function maikaChao(user) {

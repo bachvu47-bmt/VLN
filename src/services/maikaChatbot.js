@@ -264,25 +264,78 @@ export async function chuyenGiongNoi(blob) {
   throw loiCuoi || new Error('Chưa cấu hình dịch vụ chuyển giọng nói (VITE_GROQ_API_KEY / VITE_GEMINI_API_KEY)')
 }
 
-// Chat: gửi TOÀN BỘ lịch sử + system prompt (đã nhúng tri thức RAG)
-// Gemini trước (tiếng Việt tốt nhất) → hết lượt/lỗi tạm thời thì Groq.
+// Chat: gửi TOÀN BỘ lịch sử + system prompt (đã nhúng tri thức RAG). Theo kiến trúc Maika 2.0:
+//  - Câu hỏi chữ: Groq chính (~1.000 câu/ngày/model) → Gemini dự phòng
+//  - Câu hỏi có ảnh: Gemini chính (đọc ảnh tốt nhất) → Groq qwen dự phòng
+//  → dành ~100 lượt Gemini free/ngày cho phân tích ảnh hiện trường.
 // Trả về { text, nhaCungCap: 'gemini' | 'groq' }
 export async function geminiChat(lichSu, nguCanh) {
-  if (API_KEY) {
+  const coAnh = (lichSu || []).some((m) => m.anh)
+  const quaGemini = async () => ({
+    text: await sinhNoiDung({
+      systemInstruction: { parts: [{ text: systemPrompt(nguCanh) }] },
+      contents: toContents(lichSu),
+      // Model Flash mới "suy nghĩ" trước khi trả lời → chừa đủ token
+      generationConfig: { temperature: 0.4, maxOutputTokens: 8192 },
+    }),
+    nhaCungCap: 'gemini',
+  })
+  const quaGroq = async () => ({ text: await groqChat(systemPrompt(rutGonNguCanh(nguCanh)), lichSu), nhaCungCap: 'groq' })
+
+  const thuTu = [
+    ...(coAnh ? [API_KEY && quaGemini, GROQ_KEY && quaGroq] : [GROQ_KEY && quaGroq, API_KEY && quaGemini]),
+  ].filter(Boolean)
+  let loiCuoi
+  for (const thu of thuTu) {
     try {
-      const text = await sinhNoiDung({
-        systemInstruction: { parts: [{ text: systemPrompt(nguCanh) }] },
-        contents: toContents(lichSu),
-        // Model Flash mới "suy nghĩ" trước khi trả lời → chừa đủ token
-        generationConfig: { temperature: 0.4, maxOutputTokens: 8192 },
-      })
-      return { text, nhaCungCap: 'gemini' }
+      return await thu()
     } catch (e) {
-      if (!GROQ_KEY) throw e // kể cả key Gemini bị thu hồi (400/403) → vẫn còn Groq đỡ
-      console.warn('[Maika] Gemini không dùng được → chuyển sang Groq:', e.message)
+      loiCuoi = e // kể cả key bị thu hồi (400/403) → vẫn còn nhà cung cấp kia đỡ
+      console.warn('[Maika] Nhà cung cấp AI lỗi → thử nguồn còn lại:', e.message)
     }
   }
-  return { text: await groqChat(systemPrompt(rutGonNguCanh(nguCanh)), lichSu), nhaCungCap: 'groq' }
+  throw loiCuoi || new Error('Chưa cấu hình AI')
+}
+
+// Gọi AI 1 lượt ngắn (không RAG) — dùng cho trợ lý chủ động: tách việc từ câu nói, soạn tin follow-up.
+// json: true → yêu cầu trả JSON. Groq trước (rẻ lượt), Gemini dự phòng.
+export async function aiNhanh(system, cauHoi, { json = false } = {}) {
+  const lich = [{ tu: 'user', text: cauHoi }]
+  const thuTu = [
+    GROQ_KEY &&
+      (async () => {
+        const messages = sangMessagesGroq(system, lich)
+        for (const { id, them } of GROQ_MODELS.filter((m) => !m.docAnh)) {
+          const khoa = 'groq:' + id
+          if ((_hetQuotaDen.get(khoa) || 0) > Date.now()) continue
+          try {
+            const data = await goiGroq({ model: id, messages, temperature: 0.2, max_tokens: 1024, ...them, ...(json ? { response_format: { type: 'json_object' } } : {}) })
+            const text = (data?.choices?.[0]?.message?.content || '').trim()
+            if (text) return text
+          } catch (e) {
+            if (e.status === 429) _hetQuotaDen.set(khoa, Date.now() + Math.max(e.choGiay, 10) * 1000)
+            if (!NEN_DOI_MODEL(e)) throw e
+          }
+        }
+        throw new Error('Groq không phản hồi')
+      }),
+    API_KEY &&
+      (() =>
+        sinhNoiDung({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: toContents(lich),
+          generationConfig: { temperature: 0.2, maxOutputTokens: 4096, ...(json ? { responseMimeType: 'application/json' } : {}) },
+        })),
+  ].filter(Boolean)
+  let loiCuoi
+  for (const thu of thuTu) {
+    try {
+      return await thu()
+    } catch (e) {
+      loiCuoi = e
+    }
+  }
+  throw loiCuoi || new Error('Chưa cấu hình AI')
 }
 
 // ============================================================

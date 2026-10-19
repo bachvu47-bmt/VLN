@@ -1,7 +1,7 @@
 {
   "name": "vatlieunha-sales",
   "private": true,
-  "version": "1.1.11",
+  "version": "1.1.12",
   "description": "Ứng dụng bán hàng nội bộ thương hiệu Vật Liệu Nhà",
   "author": "Vật Liệu Nhà",
   "type": "module",
@@ -58,6 +58,7 @@
     "@capacitor-community/file-opener": "^8.0.1",
     "@capacitor/core": "^8.5.3",
     "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/local-notifications": "8.3.1",
     "electron-updater": "^6.8.9",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
