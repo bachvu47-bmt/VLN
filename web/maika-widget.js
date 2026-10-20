@@ -25,6 +25,7 @@
     '<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false"><defs><linearGradient id="mkwRed" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ef4444"/><stop offset="1" stop-color="#b91c1c"/></linearGradient></defs>' +
     '<rect width="64" height="64" rx="32" fill="url(#mkwRed)"/><path d="M13 31 L32 15 L51 31 V43 a5 5 0 0 1 -5 5 H29 L20 54 V48 H18 a5 5 0 0 1 -5 -5 Z" fill="#fff"/>' +
     '<rect x="24" y="31" width="5" height="9" rx="2.5" fill="#dc2626"/><rect x="35" y="31" width="5" height="9" rx="2.5" fill="#dc2626"/><circle cx="32" cy="10.5" r="2.6" fill="#fff"/></svg>'
+  var logo = function (id) { return LOGO.replace(/mkwRed/g, id) }
   var IC = {
     tool: '<path d="M14.5 6.5a4 4 0 0 0-5.3 5.3L4 17l3 3 5.2-5.2a4 4 0 0 0 5.3-5.3l-2.5 2.5-2.5-.5-.5-2.5z"/>',
     brain: '<path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 3 3V4zM15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-3 3V4z"/>',
@@ -43,9 +44,9 @@
 
   var CSS =
     '.mkw-tab .fm-ic{background:#FDECEC!important}.mkw-tab .fm-ic svg{width:26px!important;height:26px!important}.mkw-tab.mkw-mo .fm-link{background:#FDECEC}.mkw-tab .fm-tx{white-space:nowrap;font-size:11px;letter-spacing:-.01em;text-align:center}.mkw-tab .fm-link{min-width:0}' +
-    '.mkw-fab{position:fixed;right:20px;bottom:20px;z-index:2147483000;width:62px;height:62px;border:0;border-radius:50%;padding:0;background:none;cursor:pointer;filter:drop-shadow(0 8px 18px rgba(220,38,38,.38));transition:transform .2s}.mkw-fab:hover{transform:scale(1.06)}.mkw-fab svg{width:100%;height:100%;display:block}' +
+    '.mkw-fab{position:fixed;right:20px;bottom:20px;z-index:2147483000;display:inline-flex;align-items:center;gap:8px;height:46px;padding:0 18px 0 7px;border:1px solid #f1d5d5;border-radius:999px;background:#fff;color:#1b1617;font:600 13.5px/1 "Be Vietnam Pro","Segoe UI",system-ui,-apple-system,sans-serif;letter-spacing:-.005em;text-transform:none;white-space:nowrap;cursor:pointer;box-shadow:0 6px 20px rgba(185,28,28,.16),0 1px 3px rgba(0,0,0,.08);transition:transform .2s,box-shadow .2s}.mkw-fab:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(185,28,28,.22),0 1px 3px rgba(0,0,0,.08)}.mkw-fab svg{width:32px;height:32px;flex-shrink:0;display:block}' +
     '.mkw{position:fixed;z-index:2147483001;display:none;flex-direction:column;background:#fff;color:#1b1617;font:14px/1.55 "Be Vietnam Pro","Segoe UI",system-ui,-apple-system,sans-serif;overflow:hidden;box-sizing:border-box}.mkw *{box-sizing:border-box}.mkw.mkw-hien{display:flex}' +
-    '.mkw.mkw-dd{left:0;right:0;top:0;border-radius:0}.mkw.mkw-mt{right:20px;bottom:96px;width:400px;max-width:calc(100vw - 40px);height:min(640px,calc(100vh - 120px));border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.28)}' +
+    '.mkw.mkw-dd{left:0;right:0;top:0;border-radius:0}.mkw.mkw-mt{right:20px;bottom:80px;width:400px;max-width:calc(100vw - 40px);height:min(640px,calc(100vh - 104px));border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.28)}' +
     '.mkw-head{position:relative;overflow:hidden;flex-shrink:0;min-height:150px;padding:16px 16px 14px;display:flex;flex-direction:column;justify-content:flex-end;color:#fff;background:radial-gradient(120% 140% at 85% 20%,#1d3557,#13233a 60%,#0b1626)}' +
     '.mkw-luoi{position:absolute;inset:0;background-image:linear-gradient(rgba(94,200,255,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(94,200,255,.08) 1px,transparent 1px);background-size:22px 22px;-webkit-mask-image:linear-gradient(to right,#000,transparent 70%);mask-image:linear-gradient(to right,#000,transparent 70%)}' +
     '.mkw-anh{position:absolute;right:-6px;bottom:0;height:100%;max-width:46%;object-fit:cover;object-position:top;-webkit-mask-image:linear-gradient(to right,transparent 0,#000 22%,#000 80%,transparent 100%);mask-image:linear-gradient(to right,transparent 0,#000 22%,#000 80%,transparent 100%)}' +
@@ -278,7 +279,7 @@
         o.classList.add('mkw-tab')
         var ic = link.querySelector('.fm-ic')
         var tx = link.querySelector('.fm-tx')
-        if (ic) ic.innerHTML = LOGO
+        if (ic) ic.innerHTML = logo('mkwRedTab')
         if (tx) tx.textContent = 'Maika AI Agent'
         link.setAttribute('role', 'button')
         link.setAttribute('aria-label', 'Mở trò chuyện với Maika, trợ lý kỹ thuật')
@@ -288,7 +289,7 @@
     // Máy tính: nút nổi (ẩn khi đang hiện thanh điều hướng di động)
     if (NUT_NOI_MAY_TINH) {
       fab = document.createElement('button')
-      fab.type = 'button'; fab.className = 'mkw-fab'; fab.innerHTML = LOGO
+      fab.type = 'button'; fab.className = 'mkw-fab'; fab.innerHTML = logo('mkwRedFab') + '<span>Maika AI Agent</span>'
       fab.setAttribute('aria-label', 'Mở trò chuyện với Maika, trợ lý kỹ thuật')
       fab.onclick = batTat
       document.body.appendChild(fab)
