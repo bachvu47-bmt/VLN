@@ -35,13 +35,24 @@ const TOI_DA_GIAM_KHAO = Number(process.env.TOI_DA_GIAM_KHAO || 15) // câu tr�
 const ngu = (ms) => new Promise((r) => setTimeout(r, ms))
 const bam = (s) => createHash('sha1').update(s).digest('hex').slice(0, 16)
 const hdr = { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' }
+// Mạng chập chờn (ECONNRESET…) → thử lại tối đa 4 lần
+async function goiLai(fn) {
+  for (let lan = 1; ; lan++) {
+    try {
+      return await fn()
+    } catch (e) {
+      if (lan >= 4 || !(e instanceof TypeError)) throw e
+      await ngu(5000 * lan)
+    }
+  }
+}
 async function rpc(ten, body) {
-  const r = await fetch(`${URL_KHO}/rest/v1/rpc/${ten}`, { method: 'POST', headers: hdr, body: JSON.stringify({ p_pin: PIN, ...body }) })
+  const r = await goiLai(() => fetch(`${URL_KHO}/rest/v1/rpc/${ten}`, { method: 'POST', headers: hdr, body: JSON.stringify({ p_pin: PIN, ...body }) }))
   const t = await r.text()
   if (!r.ok) throw new Error(`${ten} HTTP ${r.status}: ${t.slice(0, 200)}`)
   return t ? JSON.parse(t) : null
 }
-const doc = (duongDan) => fetch(`${URL_KHO}/rest/v1/${duongDan}`, { headers: hdr }).then((r) => r.json())
+const doc = (duongDan) => goiLai(() => fetch(`${URL_KHO}/rest/v1/${duongDan}`, { headers: hdr }).then((r) => r.json()))
 
 // ---------- Groq (JSON) — xoay model khi chạm giới hạn token/phút ----------
 const MODELS = ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-20b']
@@ -164,7 +175,8 @@ trichDan: 2–5 mục; mỗi "doan" là MỘT đoạn LIỀN MẠCH chép y nguy
 const chuan = (s) => String(s).toLowerCase().normalize('NFC').replace(/[^\p{L}\p{N}%.,/]+/gu, ' ').replace(/\s+/g, ' ').trim()
 
 async function nghienCuu({ cauHoi, traLoiCu = '', goiY = '' }) {
-  const nguon = await timNguon(cauHoi + (goiY ? ' ' + goiY : ''))
+  // Tìm theo câu hỏi gốc; lời chê ("sai rồi…") chỉ là gợi ý cho model, trộn vào từ khoá dễ tìm lệch
+  const nguon = await timNguon(cauHoi)
   if (process.env.THU_CAU) console.log('Nguồn:', nguon.map((n) => `${n.id} ${n.ten} (${n.text.length} ký tự)`))
   if (!nguon.length) return { ok: false, lyDo: 'không tìm thấy nguồn' }
   const user =

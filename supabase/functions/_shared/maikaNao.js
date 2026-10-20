@@ -135,7 +135,8 @@ export function soLa(traLoi = '', nguCanh = '') {
 
 // Người hỏi chê câu trả lời trước → tín hiệu để Maika tự xem lại
 export const RE_CHE = /(sai rồi|sai bét|trả lời sai|nói sai|không đúng|chưa đúng|không phải (vậy|thế|như vậy)|nhầm rồi|bịa|vô lý|đâu có|tào lao)/i
-export const RE_CHUA_CO = /chưa có dữ liệu/i
+// Maika thiếu dữ liệu: nói thẳng "chưa có dữ liệu", hoặc đẩy người hỏi đi xem bao bì/TDS → đêm đó tự nghiên cứu
+export const RE_CHUA_CO = /chưa có dữ liệu|chưa (lưu|có) (con số|số liệu|thông tin)|(xem|tra)[^.\n]{0,40}(bao bì|vỏ thùng|TDS|tài liệu kỹ thuật)/i
 
 // Groq chỉ ~8.000 token/phút → bớt tri thức truy xuất (5 mẩu, mỗi mẩu ≤ 1.000 ký tự — ngắn hơn
 // thì cắt mất quy cách/dạng sản phẩm, model dễ "đoán" sai),
