@@ -42,7 +42,7 @@
     '<p>Với “bộ não” được học hỏi liên tục hàng ngày từ <strong>hàng ngàn giải pháp thi công thực tế</strong> và cập nhật tri thức ngành Vật Liệu Nhà mỗi ngày, mình sẽ tổng hợp và đưa ra câu trả lời <strong>chuẩn xác, thuyết phục nhất</strong> cho anh/chị ạ.</p>'
 
   var CSS =
-    '.mkw-tab .fm-ic{background:#FDECEC!important}.mkw-tab .fm-ic svg{width:26px!important;height:26px!important}.mkw-tab.mkw-mo .fm-link{background:#FDECEC}' +
+    '.mkw-tab .fm-ic{background:#FDECEC!important}.mkw-tab .fm-ic svg{width:26px!important;height:26px!important}.mkw-tab.mkw-mo .fm-link{background:#FDECEC}.mkw-tab .fm-tx{white-space:nowrap;font-size:11px;letter-spacing:-.01em;text-align:center}.mkw-tab .fm-link{min-width:0}' +
     '.mkw-fab{position:fixed;right:20px;bottom:20px;z-index:2147483000;width:62px;height:62px;border:0;border-radius:50%;padding:0;background:none;cursor:pointer;filter:drop-shadow(0 8px 18px rgba(220,38,38,.38));transition:transform .2s}.mkw-fab:hover{transform:scale(1.06)}.mkw-fab svg{width:100%;height:100%;display:block}' +
     '.mkw{position:fixed;z-index:2147483001;display:none;flex-direction:column;background:#fff;color:#1b1617;font:14px/1.55 "Be Vietnam Pro","Segoe UI",system-ui,-apple-system,sans-serif;overflow:hidden;box-sizing:border-box}.mkw *{box-sizing:border-box}.mkw.mkw-hien{display:flex}' +
     '.mkw.mkw-dd{left:0;right:0;top:0;border-radius:0}.mkw.mkw-mt{right:20px;bottom:96px;width:400px;max-width:calc(100vw - 40px);height:min(640px,calc(100vh - 120px));border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.28)}' +
@@ -279,7 +279,7 @@
         var ic = link.querySelector('.fm-ic')
         var tx = link.querySelector('.fm-tx')
         if (ic) ic.innerHTML = LOGO
-        if (tx) tx.textContent = 'Maika'
+        if (tx) tx.textContent = 'Maika AI Agent'
         link.setAttribute('role', 'button')
         link.setAttribute('aria-label', 'Mở trò chuyện với Maika, trợ lý kỹ thuật')
         link.addEventListener('click', batTat)
