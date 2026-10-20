@@ -2,7 +2,8 @@ name: Deploy Maika (máy chủ + web)
 
 # Đẩy thay đổi "bộ não" Maika lên main → tự lên máy chủ & website, không cần chạy lệnh tay:
 #  - supabase/functions/** (lời dặn chung maikaNao.js, hàm maika) → deploy Supabase Edge Function
-#  - web/** (khung chat vatlieunha.vn) → xoá cache jsDelivr để web lấy bản mới ngay
+#  - web/** (khung chat vatlieunha.vn) → GitHub Pages https://bachvu47-bmt.github.io/VLN/maika-widget.js
+#    (Pages chỉ cache 10 phút; jsDelivr @main giữ bản cũ tới 12h + trình duyệt 7 ngày → không dùng nữa)
 # App nhân viên vẫn cập nhật theo bản phát hành (tag vX.Y.Z) như cũ.
 on:
   push:
@@ -11,6 +12,7 @@ on:
       - 'supabase/functions/**'
       - 'supabase/config.toml'
       - 'web/**'
+      - '.github/workflows/deploy-maika.yml'
   workflow_dispatch:
 
 permissions:
@@ -46,8 +48,29 @@ jobs:
           echo "$kq" | head -c 300; echo
           echo "$kq" | grep -q '"text"' || { echo "::error::Hàm maika không trả lời sau khi deploy"; exit 1; }
 
-      - name: Xoá cache jsDelivr (web lấy khung chat mới ngay)
+      - name: Xoá cache jsDelivr (cho web còn dùng link cũ @main)
+        continue-on-error: true
         run: |
           for f in maika-widget.js maika-portrait.jpg maika-face.jpg; do
-            curl -sS -m 30 "https://purge.jsdelivr.net/gh/${{ github.repository }}@main/web/$f" | head -c 200; echo
+            curl -sS -m 30 "https://purge.jsdelivr.net/gh/${{ github.repository }}@main/web/$f" | head -c 120; echo
           done
+
+  # Khung chat web → GitHub Pages (nội dung = thư mục web/)
+  pages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.dang.outputs.page_url }}maika-widget.js
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: web
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - id: dang
+        uses: actions/deploy-pages@v4

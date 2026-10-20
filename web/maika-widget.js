@@ -1,7 +1,8 @@
 /* ============================================================
    MAIKA TRÊN vatlieunha.vn — khung chat trợ lý kỹ thuật (JS thuần, không thư viện)
    Gắn 1 lần vào WordPress (Flatsome → Advanced → Global Settings → Footer Scripts):
-     <script src="https://cdn.jsdelivr.net/gh/bachvu47-bmt/VLN@main/web/maika-widget.js" defer></script>
+     <script src="https://bachvu47-bmt.github.io/VLN/maika-widget.js" defer></script>
+   (GitHub Pages, workflow deploy-maika.yml tự đăng mỗi lần đẩy web/ lên main — cache ≤ 10 phút)
    - Di động: thay ĐÚNG ô "Tư vấn" (nav.footer-mb .fm-chat) bằng ô Maika, giữ nguyên
      thứ tự & kiểu các ô Cửa hàng · Zalo · Gọi ngay. Script lỗi/không tải → ô Tư vấn cũ vẫn chạy.
    - Máy tính (không có thanh footer-mb): nút Maika nổi góc phải dưới.
