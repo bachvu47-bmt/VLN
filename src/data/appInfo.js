@@ -3,7 +3,7 @@
 // ============================================================
 
 // Phiên bản hiện đang chạy trên thiết bị
-export const PHIEN_BAN_HIEN_TAI = '1.1.18'
+export const PHIEN_BAN_HIEN_TAI = '1.1.19'
 
 // ---- Cấu hình GitHub Releases (nguồn cập nhật OTA) ----
 // ⚠️ Đổi owner/repo thành repo GitHub thật của bạn.
@@ -18,12 +18,16 @@ export const GITHUB_API_LATEST = `https://api.github.com/repos/${GITHUB_REPO.own
 // Dữ liệu "server nội bộ" trả về khi kiểm tra cập nhật (mock).
 // Trong thực tế, dữ liệu này đến từ GitHub Releases API ở trên.
 export const BAN_CAP_NHAT_SERVER = {
-  phienBan: '1.1.18',
+  phienBan: '1.1.19',
   ngayPhatHanh: '2026-10-20',
   batBuoc: false, // true => chặn dùng app cho tới khi cập nhật
-  tieuDe: 'Maika tự học: đọc TDS, tự nghiên cứu, tự chấm bài & rút bài học',
-  kichThuocMB: { exe: 108, apk: 3.6 },
+  tieuDe: 'Thông báo trên điện thoại: hoá đơn KiotViet mới & bản cập nhật',
+  kichThuocMB: { exe: 108, apk: 3.7 },
   changelog: [
+    { loai: 'moi', noiDung: 'Thông báo đẩy trên Android (kể cả khi tắt app): có hoá đơn mới trên KiotViet → máy Admin báo ngay, chạm vào mở Báo cáo.' },
+    { loai: 'moi', noiDung: 'Có bản VatLieuNha Sales mới → mọi máy nhận thông báo, chạm vào để cập nhật.' },
+    { loai: 'caitien', noiDung: 'Kênh thông báo riêng (Hoá đơn mới · Bản cập nhật · Bản tin Maika) — tắt/bật từng loại trong cài đặt Android.' },
+    { loai: 'caitien', noiDung: 'Maika ưu tiên sản phẩm cửa hàng bán chạy và 485 bài viết trên vatlieunha.vn, trích đúng link bài khi trả lời.' },
     { loai: 'moi', noiDung: 'Maika trả lời như chuyên gia kỹ thuật: xác nhận đúng ý hỏi, tóm gọn tối đa 6 ý, kèm 1 link đúng bài trên vatlieunha.vn — link bấm được ngay trong khung chat.' },
     { loai: 'moi', noiDung: 'Đọc sâu tài liệu kỹ thuật (TDS, hướng dẫn thi công PDF) của nhà sản xuất: định mức, tỷ lệ pha, thời gian chờ lấy từ tài liệu chính hãng.' },
     { loai: 'moi', noiDung: 'Tự nghiên cứu: câu nào Maika "chưa có dữ liệu", đêm đó Maika tự tìm trên vatlieunha.vn, trang + TDS nhà sản xuất rồi học bổ sung.' },
