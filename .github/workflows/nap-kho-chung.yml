@@ -1,0 +1,41 @@
+name: Nạp tri thức kho chung Maika
+
+# Mỗi ngày: sản phẩm vatlieunha.vn → đoạn tri thức trên kho chung (Supabase) → vector hoá
+# phần còn thiếu. Gemini embedding free có hạn mức/ngày (reset ~0h giờ Mỹ = 14–15h VN)
+# → chạy 15:30 giờ VN để dùng trọn lượt mới; hết lượt thì dừng, hôm sau học nốt.
+# Đồng thời giữ kho chung khớp website (SP mới/đổi mô tả/gỡ bỏ).
+on:
+  schedule:
+    - cron: '30 8 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nap-kho-chung
+  cancel-in-progress: false
+
+jobs:
+  nap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts
+            src/services
+            supabase/functions/_shared
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Nạp & vector hoá
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
+          ADMIN_PIN: ${{ secrets.MAIKA_ADMIN_PIN }}
+        run: node scripts/nap-kho-chung.mjs
