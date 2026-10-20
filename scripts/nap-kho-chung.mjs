@@ -167,7 +167,7 @@ if (!GROQ) {
       loai: 'tai_lieu',
       trang_thai: 'da_duyet',
       tieu_de: `Hồ sơ sản phẩm: ${sp.ten}`,
-      noi_dung: `Hồ sơ sản phẩm: ${sp.ten} (${sp.nhom}).\n${dong.join('\n')}`,
+      noi_dung: `Hồ sơ sản phẩm: ${sp.ten} (${sp.nhom}).\n${dong.join('\n')}${sp.video ? `\nVideo hướng dẫn: ${sp.video}` : ''}`,
       tags: ['ho-so-san-pham'],
       nguon: sp.url,
       sp_id: sp.id,

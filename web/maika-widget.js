@@ -56,7 +56,7 @@
     '.mkw-feats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:9px 12px;border-bottom:1px solid #eee5e5;flex-shrink:0}.mkw-feat{display:flex;align-items:center;gap:6px;font-size:11px;line-height:1.3;color:#6c6264;font-weight:500;min-width:0}.mkw-feat svg{width:18px;height:18px;flex-shrink:0;color:#dc2626}' +
     '.mkw-msgs{flex:1;min-height:0;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:12px;background:#f6f3f3;-webkit-overflow-scrolling:touch}' +
     '.mkw-m{display:flex;gap:8px;align-items:flex-end}.mkw-m img.mkw-av{width:30px;height:30px;border-radius:50%;object-fit:cover;flex-shrink:0}.mkw-b{background:#fff;border:1px solid #eee5e5;border-radius:16px 16px 16px 4px;padding:10px 12px;max-width:86%;min-width:0;overflow-wrap:anywhere}' +
-    '.mkw-b p{margin:0 0 6px}.mkw-b p:last-child{margin:0}.mkw-b strong{color:#c81e1e}.mkw-b ul{margin:4px 0 6px;padding-left:18px}.mkw-b li{margin:2px 0}.mkw-b img{display:block;max-width:180px;border-radius:10px;margin-bottom:6px}' +
+    '.mkw-b p{margin:0 0 6px}.mkw-b p:last-child{margin:0}.mkw-b strong{color:#c81e1e}.mkw-b ul,.mkw-b ol{margin:4px 0 6px;padding-left:20px}.mkw-b li{margin:2px 0}.mkw-b a{color:#c81e1e;font-weight:600;text-decoration:underline;word-break:break-all}.mkw-m.mkw-u .mkw-b a{color:#fff}.mkw-b img{display:block;max-width:180px;border-radius:10px;margin-bottom:6px}' +
     '.mkw-m.mkw-u{justify-content:flex-end}.mkw-m.mkw-u .mkw-b{background:#dc2626;color:#fff;border-color:#dc2626;border-radius:16px 16px 4px 16px}.mkw-m.mkw-u .mkw-b strong{color:#fff}' +
     '.mkw-loi .mkw-b{border-color:#fecaca;background:#fff5f5}.mkw-dang i{display:inline-block;width:7px;height:7px;margin:0 2px;border-radius:50%;background:#dc2626;opacity:.35;animation:mkwN 1s infinite}.mkw-dang i:nth-child(2){animation-delay:.15s}.mkw-dang i:nth-child(3){animation-delay:.3s}' +
     '@keyframes mkwN{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}' +
@@ -74,21 +74,25 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
     })
   }
-  // Markdown tối thiểu: **đậm**, gạch đầu dòng, xuống dòng
+  // Markdown tối thiểu: **đậm**, gạch đầu dòng, danh sách đánh số, link, xuống dòng
   function dinhDang(text) {
     var khoi = [], ds = null
     String(text).split(/\n/).forEach(function (dong) {
       var t = thoat(dong).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/^#{1,4}\s*/, '')
-      var m = t.match(/^\s*(?:[-*•]|\d+[.)])\s+(.*)$/)
+        // Link bấm được: [chữ](url) và url trần (Maika chỉ đưa link vatlieunha.vn / YouTube / TikTok)
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+        .replace(/(^|[\s(])(https?:\/\/[^\s<]*[^\s<.,;:!?)])/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>')
+      var m = t.match(/^\s*([-*•]|\d+[.)])\s+(.*)$/)
       if (m) {
-        if (!ds) { ds = []; khoi.push(ds) }
-        ds.push(m[1])
+        var the = /\d/.test(m[1]) ? 'ol' : 'ul'
+        if (!ds || ds.the !== the) { ds = []; ds.the = the; khoi.push(ds) }
+        ds.push(m[2])
       } else {
         ds = null
         if (t.trim()) khoi.push('<p>' + t + '</p>')
       }
     })
-    return khoi.map(function (k) { return Array.isArray(k) ? '<ul><li>' + k.join('</li><li>') + '</li></ul>' : k }).join('')
+    return khoi.map(function (k) { return Array.isArray(k) ? '<' + k.the + '><li>' + k.join('</li><li>') + '</li></' + k.the + '>' : k }).join('')
   }
   function docLuu() {
     try { return JSON.parse(sessionStorage.getItem(KHOA_LUU) || '[]') } catch (e) { return [] }

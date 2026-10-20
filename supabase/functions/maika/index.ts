@@ -142,7 +142,7 @@ async function vectorCauHoi(text: string): Promise<number[] | null> {
   }
 }
 
-const doiHang = (r: any) => ({ loai: r.loai, tieuDe: r.tieu_de, noiDung: r.noi_dung })
+const doiHang = (r: any) => ({ loai: r.loai, tieuDe: r.tieu_de, noiDung: r.noi_dung, nguon: r.nguon || '' })
 
 // Từ khoá: chấm điểm theo số từ khớp (tiêu đề nặng gấp đôi) — tìm được cả đoạn CHƯA có vector
 // (embedding free có hạn mức/ngày, kho mới nạp phải vài ngày mới đủ vector)
@@ -152,7 +152,7 @@ async function timTuKhoa(text: string, k: number) {
   if (!tu.length) return []
   const mau = tu.map((w) => `%${w}%`)
   return await sql`
-    select loai, tieu_de, noi_dung,
+    select loai, tieu_de, noi_dung, nguon,
       (select count(*) from unnest(${mau}::text[]) m where t.tieu_de ilike m) * 2 +
       (select count(*) from unnest(${mau}::text[]) m where t.noi_dung ilike m) as diem
     from public.tri_thuc t
@@ -221,7 +221,7 @@ Deno.serve(async (req) => {
     }
 
     const truyVan = cauTruyVan(lichSu)
-    const triThucApp = cheDo === 'noi-bo' && Array.isArray(body?.triThuc) ? body.triThuc.slice(0, 10).map((t: any) => ({ loai: String(t?.loai || ''), tieuDe: String(t?.tieuDe || '').slice(0, 300), noiDung: String(t?.noiDung || '').slice(0, 3000) })) : null
+    const triThucApp = cheDo === 'noi-bo' && Array.isArray(body?.triThuc) ? body.triThuc.slice(0, 10).map((t: any) => ({ loai: String(t?.loai || ''), tieuDe: String(t?.tieuDe || '').slice(0, 300), noiDung: String(t?.noiDung || '').slice(0, 3000), nguon: String(t?.nguon || '').slice(0, 300) })) : null
     const triThuc = triThucApp ?? (await timTriThuc(truyVan).catch((e) => (console.warn('[maika] tìm tri thức lỗi:', e.message), [])))
     const khoNoiBo = cheDo === 'noi-bo' ? String(body?.khoNoiBo || '').slice(0, 20000) : ''
 

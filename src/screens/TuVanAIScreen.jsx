@@ -128,6 +128,26 @@ function SPCard({ sp }) {
 }
 
 // Tài liệu chỉ hiện khi người dùng xin ("cung cấp tài liệu chi tiết", "cho link TDS"...)
+// Chữ của Maika: link (url trần hoặc [chữ](url)) thành link bấm được, **đậm** bỏ dấu sao
+const RE_LINK = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s]*[^\s.,;:!?)])/g
+function NoiDungMaika({ text }) {
+  const s = String(text || '').replace(/\*\*(.+?)\*\*/g, '$1')
+  const phan = []
+  let cuoi = 0
+  for (const m of s.matchAll(RE_LINK)) {
+    if (m.index > cuoi) phan.push(s.slice(cuoi, m.index))
+    const url = m[2] || m[3]
+    phan.push(
+      <a key={m.index} href={url} target="_blank" rel="noreferrer" className="break-all font-semibold text-brand-700 underline">
+        {m[1] || url}
+      </a>,
+    )
+    cuoi = m.index + m[0].length
+  }
+  phan.push(s.slice(cuoi))
+  return phan
+}
+
 function TaiLieu({ ds }) {
   if (!ds?.length) return null
   return (
@@ -376,7 +396,7 @@ export default function TuVanAIScreen({ onClose, onMo }) {
               <MaikaAvatar />
               <div className="max-w-[82%]">
                 <div className="anim-sheet whitespace-pre-line rounded-2xl rounded-tl-sm border border-brand-100 bg-brand-50 px-3.5 py-2.5 text-sm text-gray-800">
-                  {m.text}
+                  <NoiDungMaika text={m.text} />
                   {m.sp && <SPCard sp={m.sp} />}
                   {m.calc && m.sp && (
                     <button onClick={() => onMo && onMo('tinhvattu', m.sp)} className="tap mt-2 w-full rounded-lg bg-brand-600 py-2 text-xs font-bold text-white">
