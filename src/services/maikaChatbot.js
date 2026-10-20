@@ -208,7 +208,7 @@ export function mayChuMaikaCoCauHinh() {
 async function hoiMayChu(lichSu, nguCanh) {
   // Chỉ tin nhắn cuối giữ ảnh; 12 tin gần nhất là đủ ngữ cảnh
   const gon = (lichSu || []).slice(-12).map((m, i, a) => ({ tu: m.tu, text: m.text || '', coAnh: !!(m.coAnh || m.anh), ...(i === a.length - 1 && m.anh ? { anh: m.anh } : {}) }))
-  const body = { cheDo: 'noi-bo', lichSu: gon, khoNoiBo: nguCanh?.khoNoiBo || '', triThuc: (nguCanh?.triThuc || []).map(({ loai, tieuDe, noiDung }) => ({ loai, tieuDe, noiDung })) }
+  const body = { cheDo: 'noi-bo', lichSu: gon, khoNoiBo: nguCanh?.khoNoiBo || '', triThuc: (nguCanh?.triThuc || []).map(({ loai, tieuDe, noiDung, nguon }) => ({ loai, tieuDe, noiDung, nguon })) }
   const headers = { 'Content-Type': 'application/json', apikey: KEY_PUBLIC, Authorization: `Bearer ${KEY_PUBLIC}` }
   let status, data
   if (laNative()) {
