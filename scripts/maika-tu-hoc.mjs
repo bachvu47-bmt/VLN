@@ -125,15 +125,25 @@ async function timNguon(cauHoi) {
     }
   }
   // b) vatlieunha.vn — tìm sản phẩm theo từ khoá
-  const sp = await fetch(`https://vatlieunha.vn/wp-json/wc/store/v1/products?per_page=3&search=${encodeURIComponent(tu.slice(0, 4).join(' '))}`, { headers: { 'User-Agent': UA } })
-    .then((r) => (r.ok ? r.json() : []))
-    .catch(() => [])
+  const timSP = (q) =>
+    fetch(`https://vatlieunha.vn/wp-json/wc/store/v1/products?per_page=3&search=${encodeURIComponent(q)}`, { headers: { 'User-Agent': UA } })
+      .then((r) => (r.ok ? r.json() : []))
+      .catch(() => [])
+  let sp = await timSP(tu.slice(0, 4).join(' '))
+  if (!sp?.length && tu.length > 2) sp = await timSP(tu.slice(0, 2).join(' ')) // tìm nhiều từ không ra → 2 từ chính
   for (const p of (Array.isArray(sp) ? sp : []).map(mapSanPham).slice(0, 2)) {
     let text = `${p.ten} (${p.nhom}). ${p.moTa}`
     for (const t of p.taiLieu.slice(0, 1)) text += '\nTDS: ' + (await docPdf(t.url, { toiDa: 2500, ua: UA }))
     nguon.push({ ten: p.ten, url: p.url, text })
   }
-  // c) trang nhà sản xuất khớp từ khoá trong đường dẫn + TDS gắn trên trang
+  // b2) bài viết hướng dẫn / tư vấn trên vatlieunha.vn
+  const bai = await fetch(`https://vatlieunha.vn/wp-json/wp/v2/posts?per_page=2&_fields=link,title,content&search=${encodeURIComponent(tu.slice(0, 4).join(' '))}`, { headers: { 'User-Agent': UA } })
+    .then((r) => (r.ok ? r.json() : []))
+    .catch(() => [])
+  for (const p of Array.isArray(bai) ? bai : []) {
+    nguon.push({ ten: trichNoiDung(p.title?.rendered || ''), url: p.link, text: trichNoiDung(p.content?.rendered || '').replace(/\n+/g, ' ') })
+  }
+  // c) trang nhà sản xuất khớp từ khoá trong đường dẫn + TDS gắn trên trang (mở rộng)
   const trang = (await trangNSX())
     .map((x) => ({ ...x, diem: k.filter((w) => x.k.includes(w)).length }))
     .filter((x) => x.diem >= Math.min(2, k.length))
@@ -162,7 +172,8 @@ async function timNguon(cauHoi) {
     .filter((n) => n.text.length >= 80)
     .map((n, i) => ({ ...n, id: `N${i + 1}` }))
 }
-const thuHang = (n) => (/vnm\.sika|jotun\.com|maxbond\.vn/.test(n.url) ? 0 : /vatlieunha\.vn/.test(n.url) && n.text.includes('TDS:') ? 1 : /vatlieunha\.vn\/san-pham/.test(n.url) ? 2 : 3)
+// Nguồn của chính Vật Liệu Nhà trước (sản phẩm đang bán, bài viết), nhà sản xuất là phần mở rộng
+const thuHang = (n) => (/vatlieunha\.vn\/san-pham/.test(n.url) ? 0 : /vatlieunha\.vn/.test(n.url) ? 1 : /vnm\.sika|jotun\.com|maxbond\.vn/.test(n.url) ? 2 : 3)
 
 // ---------- Nghiên cứu → câu trả lời có trích dẫn, tự kiểm chứng ----------
 const SYS_NGHIEN_CUU = `Bạn là Maika — chuyên gia kỹ thuật của Vật Liệu Nhà, đang TỰ NGHIÊN CỨU để trả lời lại một câu hỏi mà trước đó bạn trả lời chưa tốt.

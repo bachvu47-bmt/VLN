@@ -16,6 +16,8 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { bam, doanTuSanPham, mapSanPham } from '../src/services/sanPhamWeb.js'
+import { diemBanChay } from './banChay.mjs'
+import { trichNoiDung } from './nguonNSX.mjs'
 import { SO_CHIEU_VECTOR } from '../supabase/functions/_shared/maikaNao.js'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -25,7 +27,7 @@ const URL_KHO = docEnv('VITE_SUPABASE_URL').replace(/\/$/, '')
 const KEY = docEnv('VITE_SUPABASE_ANON_KEY')
 const GEMINI = docEnv('VITE_GEMINI_API_KEY')
 const GROQ = docEnv('VITE_GROQ_API_KEY')
-const HO_SO_MOI_LAN = Number(process.env.HO_SO_MOI_LAN || 150)
+const HO_SO_MOI_LAN = Number(process.env.HO_SO_MOI_LAN || 300)
 const PIN = process.env.ADMIN_PIN || (existsSync(join(ROOT, '.admin-pin.local')) ? readFileSync(join(ROOT, '.admin-pin.local'), 'utf8').trim() : '')
 if (!URL_KHO || !KEY || !PIN) throw new Error('Thiếu VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY / PIN Admin — chạy scripts/setup-supabase.mjs trước')
 
@@ -140,11 +142,15 @@ const baiCua = (sp) =>
     .filter(Boolean)
     .join('\n')
     .slice(0, 4000)
-const choViet = sanPham.filter((sp) => {
-  if ((sp.moTa || '').length < 120) return false // mô tả quá ngắn → không có gì để lập hồ sơ
-  const cu = hoSoCu.get('hs:' + sp.id)
-  return !cu || cu.da_xoa || cu.hash !== bam(KHUNG_HO_SO + baiCua(sp))
-})
+// Bán chạy trước: doanh số KiotViet 180 ngày (sản phẩm chưa bán xếp sau, giữ thứ tự website)
+const banChay = await diemBanChay(sanPham)
+const choViet = sanPham
+  .filter((sp) => {
+    if ((sp.moTa || '').length < 120) return false // mô tả quá ngắn → không có gì để lập hồ sơ
+    const cu = hoSoCu.get('hs:' + sp.id)
+    return !cu || cu.da_xoa || cu.hash !== bam(KHUNG_HO_SO + baiCua(sp))
+  })
+  .sort((a, b) => (banChay.get(b.id) || 0) - (banChay.get(a.id) || 0))
 const hoSoMoi = []
 if (!GROQ) {
   console.log('⚠ Thiếu VITE_GROQ_API_KEY — bỏ qua hồ sơ sản phẩm')
@@ -183,6 +189,51 @@ if (!GROQ) {
   console.log(`✓ Hồ sơ: viết ${hoSoMoi.length} · xoá ${hoSoXoa.length} của SP đã gỡ · còn ${Math.max(choViet.length - hoSoMoi.length, 0)} chờ lần sau`)
 }
 
+// 3b) BÀI VIẾT vatlieunha.vn (hướng dẫn, tư vấn, giải pháp) → đoạn tri thức 'blog:<id>:<i>' kèm link bài
+//     loai 'tai_lieu' để nút "Đồng bộ website" (chỉ xoá loai 'web') không đụng tới
+const baiViet = []
+for (let page = 1; page <= 20; page++) {
+  const r = await fetch(`https://vatlieunha.vn/wp-json/wp/v2/posts?per_page=100&page=${page}&_fields=id,link,title,content`, { headers: { 'User-Agent': 'VLN-Maika-Sync/1.0' } })
+  if (!r.ok) break // hết trang → WordPress trả 400
+  const ds = await r.json()
+  if (!Array.isArray(ds) || !ds.length) break
+  baiViet.push(...ds)
+  if (ds.length < 100) break
+}
+const doanBlog = baiViet.flatMap((p) => {
+  const tieuDe = trichNoiDung(p.title?.rendered || '')
+  const than = trichNoiDung(p.content?.rendered || '').replace(/\n+/g, ' ')
+  if (than.length < 200) return []
+  const phan = []
+  for (let i = 0; i < than.length && phan.length < 4; i += 1200) phan.push(than.slice(i, i + 1200))
+  return phan.map((noiDung, i) => ({
+    id: `blog:${p.id}:${i}`,
+    tieuDe: i === 0 ? tieuDe : `${tieuDe} (phần ${i + 1})`,
+    noiDung: `${tieuDe}. ${noiDung}`,
+    nguon: p.link,
+  }))
+})
+const blogCu = new Map()
+for (let tu = 0; ; tu += 1000) {
+  const rows = await fetch(`${URL_KHO}/rest/v1/tri_thuc?select=id,hash,da_xoa,co_vector&id=like.blog:*&order=id&offset=${tu}&limit=1000`, { headers: hdr }).then((r) => r.json())
+  rows.forEach((r) => blogCu.set(r.id, r))
+  if (rows.length < 1000) break
+}
+const blogGhi = doanBlog.filter((d) => blogCu.get(d.id)?.hash !== bam(d.noiDung) || blogCu.get(d.id)?.da_xoa)
+for (let i = 0; i < blogGhi.length; i += 200) {
+  await rest('rpc/admin_ghi', {
+    p_pin: PIN,
+    p_rows: blogGhi.slice(i, i + 200).map((d) => ({
+      id: d.id, loai: 'tai_lieu', trang_thai: 'da_duyet', tieu_de: d.tieuDe, noi_dung: d.noiDung, tags: ['bai-viet'], nguon: d.nguon,
+      hash: bam(d.noiDung), nguoi_tao: 'vatlieunha.vn · bài viết', tao_luc: new Date().toISOString(), embedding: null,
+    })),
+  })
+}
+const idBlog = new Set(doanBlog.map((d) => d.id))
+const blogXoa = baiViet.length ? [...blogCu.values()].filter((r) => !r.da_xoa && !idBlog.has(r.id)).map((r) => r.id) : []
+for (let i = 0; i < blogXoa.length; i += 500) await rest('rpc/admin_xoa', { p_pin: PIN, p_ids: blogXoa.slice(i, i + 500) })
+console.log(`✓ Bài viết: ${baiViet.length} bài → ${doanBlog.length} đoạn · ghi ${blogGhi.length} mới/đổi · xoá ${blogXoa.length}`)
+
 // 4) Vector hoá đoạn còn thiếu
 if (!GEMINI) {
   console.log('⚠ Thiếu VITE_GEMINI_API_KEY — bỏ qua vector hoá (Maika vẫn tìm theo từ khoá)')
@@ -197,12 +248,18 @@ const hoSoCanHoc = [
 ].map((r) => ({ id: r.id, tieuDe: r.tieu_de, noiDung: r.noi_dung }))
 // Tri thức khác chưa có vector (thẻ chính hãng nsx:, Maika tự học tu-hoc:, đính chính…) → học trước nhất
 const khacThieu = await fetch(
-  `${URL_KHO}/rest/v1/tri_thuc?select=id,tieu_de,noi_dung&trang_thai=eq.da_duyet&da_xoa=eq.false&co_vector=eq.false&id=not.like.web:*&id=not.like.hs:*&limit=500`,
+  `${URL_KHO}/rest/v1/tri_thuc?select=id,tieu_de,noi_dung&trang_thai=eq.da_duyet&da_xoa=eq.false&co_vector=eq.false&id=not.like.web:*&id=not.like.hs:*&id=not.like.blog:*&limit=500`,
   { headers: hdr },
 ).then((r) => r.json())
+// Hồ sơ theo thứ tự bán chạy
+const hangHoSo = (id) => -(banChay.get(String(id).replace(/^hs:/, '')) || 0)
+hoSoCanHoc.sort((a, b) => hangHoSo(a.id) - hangHoSo(b.id))
+const blogCanHoc = doanBlog.filter((d) => blogGhi.includes(d) || !blogCu.get(d.id)?.co_vector)
+// Thứ tự học vector: đính chính/tự học → hồ sơ SP bán chạy → bài viết → đoạn mô tả thô
 const canHoc = [
   ...khacThieu.map((r) => ({ id: r.id, tieuDe: r.tieu_de, noiDung: r.noi_dung })),
   ...hoSoCanHoc,
+  ...blogCanHoc,
   ...doan.filter((d) => thieu.has(d.id)),
 ]
 console.log(`• Vector hoá ${canHoc.length} đoạn…`)
