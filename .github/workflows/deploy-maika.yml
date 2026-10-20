@@ -1,0 +1,53 @@
+name: Deploy Maika (máy chủ + web)
+
+# Đẩy thay đổi "bộ não" Maika lên main → tự lên máy chủ & website, không cần chạy lệnh tay:
+#  - supabase/functions/** (lời dặn chung maikaNao.js, hàm maika) → deploy Supabase Edge Function
+#  - web/** (khung chat vatlieunha.vn) → xoá cache jsDelivr để web lấy bản mới ngay
+# App nhân viên vẫn cập nhật theo bản phát hành (tag vX.Y.Z) như cũ.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+      - 'supabase/config.toml'
+      - 'web/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-maika
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Deploy hàm maika lên Supabase
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: npx --yes supabase@latest functions deploy maika --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}" --use-api --no-verify-jwt
+
+      - name: Thử hỏi Maika sau khi deploy
+        env:
+          URL: ${{ secrets.VITE_SUPABASE_URL }}
+        run: |
+          # triThuc rỗng → không truy xuất, Groq trả lời trước (tiết kiệm lượt Gemini)
+          kq=$(curl -sS -m 60 -X POST "$URL/functions/v1/maika" -H 'Content-Type: application/json' \
+            -d '{"cheDo":"noi-bo","triThuc":[],"lichSu":[{"tu":"user","text":"Xin chào Maika, trả lời đúng 1 câu ngắn."}]}')
+          echo "$kq" | head -c 300; echo
+          echo "$kq" | grep -q '"text"' || { echo "::error::Hàm maika không trả lời sau khi deploy"; exit 1; }
+
+      - name: Xoá cache jsDelivr (web lấy khung chat mới ngay)
+        run: |
+          for f in maika-widget.js maika-portrait.jpg maika-face.jpg; do
+            curl -sS -m 30 "https://purge.jsdelivr.net/gh/${{ github.repository }}@main/web/$f" | head -c 200; echo
+          done

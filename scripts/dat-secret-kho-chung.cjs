@@ -2,6 +2,7 @@
 //  ĐƯA CẤU HÌNH "BỘ NÃO CHUNG" MAIKA LÊN GITHUB SECRETS (chạy lại được)
 //  - VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY (từ .env.local): bản build .apk/.exe dùng kho chung
 //  - MAIKA_ADMIN_PIN (từ .admin-pin.local): workflow nap-kho-chung.yml ghi tri thức hằng ngày
+//  - SUPABASE_ACCESS_TOKEN + SUPABASE_PROJECT_REF: workflow deploy-maika.yml tự deploy hàm maika
 //  Chạy: node scripts/dat-secret-kho-chung.cjs   (token: GH_TOKEN hoặc .gh-token.local)
 //  Không in giá trị bí mật ra màn hình.
 // ============================================================
@@ -17,10 +18,14 @@ if (!TOKEN) throw new Error('Thiếu token GitHub: GH_TOKEN hoặc .gh-token.loc
 
 const env = docFile('.env.local')
 const docEnv = (ten) => (env.match(new RegExp(`^${ten}=(.*)$`, 'm'))?.[1] || '').trim()
+const url = docEnv('VITE_SUPABASE_URL')
 const secrets = {
-  VITE_SUPABASE_URL: docEnv('VITE_SUPABASE_URL'),
+  VITE_SUPABASE_URL: url,
   VITE_SUPABASE_ANON_KEY: docEnv('VITE_SUPABASE_ANON_KEY'),
   MAIKA_ADMIN_PIN: docFile('.admin-pin.local').trim(),
+  // Workflow deploy-maika.yml: đẩy code supabase/functions lên GitHub → tự deploy hàm maika
+  SUPABASE_ACCESS_TOKEN: docFile('.supabase-token.local').trim(),
+  SUPABASE_PROJECT_REF: (url.match(/^https:\/\/([a-z0-9]+)\.supabase\.co/) || [])[1] || '',
 }
 for (const [ten, v] of Object.entries(secrets)) if (!v) throw new Error(`Thiếu giá trị ${ten} — chạy scripts/setup-supabase.mjs trước`)
 
