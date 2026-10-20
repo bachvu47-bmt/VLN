@@ -11,7 +11,7 @@
 //   5) ghi VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY vào .env.local → tự kiểm tra
 // ============================================================
 import { execFileSync } from 'node:child_process'
-import { randomInt } from 'node:crypto'
+import { randomBytes, randomInt } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -78,6 +78,12 @@ if (pinMoi) {
 const secrets = [
   ['GEMINI_API_KEY', docEnv('VITE_GEMINI_API_KEY')],
   ['GROQ_API_KEY', docEnv('VITE_GROQ_API_KEY')],
+  // Zalo OA (developers.zalo.me → ứng dụng liên kết OA) — có thì hàm "zalo" mới chạy
+  ['ZALO_APP_ID', docEnv('ZALO_APP_ID')],
+  ['ZALO_APP_SECRET', docEnv('ZALO_APP_SECRET')],
+  ['ZALO_OA_SECRET', docEnv('ZALO_OA_SECRET')],
+  // Khoá nội bộ hàm "zalo" → hàm "maika" (đếm lượt theo từng khách Zalo); mỗi lần cài tạo mới
+  ['MAIKA_KHOA_NOI', randomBytes(24).toString('hex')],
 ].filter(([, v]) => v)
 if (secrets.length) {
   await api(`/projects/${ref}/secrets`, { method: 'POST', body: JSON.stringify(secrets.map(([name, value]) => ({ name, value }))) })
@@ -88,13 +94,16 @@ if (secrets.length) {
 
 // 5) Deploy hàm "maika" (Supabase CLI bundle trên máy chủ, không cần Docker)
 if (!process.env.BO_QUA_HAM) {
-  execFileSync('npx', ['--yes', 'supabase@latest', 'functions', 'deploy', 'maika', '--project-ref', ref, '--use-api', '--no-verify-jwt'], {
-    cwd: ROOT,
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-    env: { ...process.env, SUPABASE_ACCESS_TOKEN: TOKEN },
-  })
-  console.log('✓ Đã deploy hàm maika')
+  for (const ham of ['maika', 'zalo']) {
+    if (!existsSync(join(ROOT, 'supabase', 'functions', ham))) continue
+    execFileSync('npx', ['--yes', 'supabase@latest', 'functions', 'deploy', ham, '--project-ref', ref, '--use-api', '--no-verify-jwt'], {
+      cwd: ROOT,
+      stdio: 'inherit',
+      shell: process.platform === 'win32',
+      env: { ...process.env, SUPABASE_ACCESS_TOKEN: TOKEN },
+    })
+    console.log(`✓ Đã deploy hàm ${ham}`)
+  }
 }
 
 // 6) Key public (ưu tiên publishable key mới, fallback anon legacy) → .env.local

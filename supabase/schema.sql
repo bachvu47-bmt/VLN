@@ -251,7 +251,50 @@ begin
   on conflict (khoa) do update set gia_tri = excluded.gia_tri, cap_nhat_luc = now();
 end $$;
 
+-- ---------- MAIKA TRÊN ZALO OA (hàm máy chủ "zalo") — mọi bảng chỉ hàm máy chủ đọc/ghi qua DB ----------
+create table if not exists public.zalo_token (
+  id            int primary key default 1 check (id = 1),
+  access_token  text not null,
+  refresh_token text not null, -- dùng 1 lần: mỗi lần refresh Zalo cấp cái mới
+  het_han       timestamptz not null,
+  cap_nhat_luc  timestamptz not null default now()
+);
+create table if not exists public.zalo_cap_quyen (
+  state    text primary key,
+  verifier text not null, -- PKCE code_verifier, dùng khi Zalo gọi lại kèm code
+  luc      timestamptz not null default now()
+);
+create table if not exists public.zalo_khach (
+  user_id      text primary key,
+  tam_dung_den timestamptz, -- nhân viên đang trả lời tay → Maika im tới lúc này
+  lan_cuoi     timestamptz not null default now()
+);
+create table if not exists public.zalo_tin (
+  id      bigserial primary key,
+  user_id text not null,
+  tu      text not null check (tu in ('khach', 'maika', 'nhan_vien')),
+  text    text not null default '',
+  msg_id  text unique, -- chống xử lý trùng khi Zalo gửi lại webhook
+  luc     timestamptz not null default now()
+);
+create index if not exists zalo_tin_khach_idx on public.zalo_tin (user_id, luc);
+alter table public.zalo_token enable row level security;
+alter table public.zalo_cap_quyen enable row level security;
+alter table public.zalo_khach enable row level security;
+alter table public.zalo_tin enable row level security;
+revoke all on public.zalo_token, public.zalo_cap_quyen, public.zalo_khach, public.zalo_tin from anon, authenticated;
+
+-- scripts/zalo-cap-quyen.mjs: ghi state + code_verifier trước khi mở trang cấp quyền của Zalo
+create or replace function public.admin_zalo_bat_dau(p_pin text, p_state text, p_verifier text)
+returns void language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform public._bat_pin(p_pin);
+  delete from public.zalo_cap_quyen where luc < now() - interval '1 day';
+  insert into public.zalo_cap_quyen (state, verifier) values (p_state, p_verifier);
+end $$;
+
 grant execute on function public.kiem_tra_pin(text), public.de_xuat_sua_sai(text, text, text, text, text),
+  public.admin_zalo_bat_dau(text, text, text),
   public.admin_ghi(text, jsonb), public.admin_gan_vector(text, jsonb), public.admin_xoa(text, text[]),
   public.tim_tri_thuc(extensions.vector, int, float),
   public.admin_doc_nhat_ky(text, int), public.admin_xong_nhat_ky(text, bigint[], text),

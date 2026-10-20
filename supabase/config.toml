@@ -1,6 +1,10 @@
-# Cấu hình tối thiểu cho Supabase CLI (chỉ dùng để deploy hàm máy chủ "maika")
+# Cấu hình tối thiểu cho Supabase CLI (deploy hàm máy chủ "maika" và "zalo")
 project_id = "maika"
 
 [functions.maika]
 # Web vatlieunha.vn gọi không cần đăng nhập — hàm tự giới hạn lượt theo IP
+verify_jwt = false
+
+[functions.zalo]
+# Zalo gọi webhook không kèm JWT — hàm tự kiểm chữ ký X-ZEvent-Signature
 verify_jwt = false

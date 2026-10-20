@@ -15,6 +15,7 @@ import { cauTruyVan, GEMINI_MODELS, GROQ_MODELS, NHIET_DO, RE_CHE, RE_CHUA_CO, r
 
 const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
 const GROQ_KEY = Deno.env.get('GROQ_API_KEY') || ''
+const KHOA_NOI = Deno.env.get('MAIKA_KHOA_NOI') || '' // chỉ hàm "zalo" biết — xem functions/zalo
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 const EMBED_MODEL = 'gemini-embedding-001'
@@ -250,7 +251,9 @@ Deno.serve(async (req) => {
   const lichSu = lamSachLichSu(body?.lichSu)
   if (!lichSu) return traVe({ loi: 'Chưa có câu hỏi' }, 400)
 
-  const ip = (req.headers.get('x-forwarded-for') || '').split(',')[0].trim() || 'khong-ro'
+  // Hàm "zalo" gọi thay khách Zalo (cùng 1 IP máy chủ) → đếm lượt theo từng khách Zalo, không theo IP
+  const quaZalo = !!KHOA_NOI && req.headers.get('x-maika-khoa') === KHOA_NOI && typeof body?.khachId === 'string'
+  const ip = quaZalo ? 'zalo:' + body.khachId.slice(0, 64) : (req.headers.get('x-forwarded-for') || '').split(',')[0].trim() || 'khong-ro'
   try {
     if (!(await conLuot(cheDo, ip))) {
       return traVe({ loi: cheDo === 'khach' ? 'Hôm nay Maika đã trả lời anh/chị nhiều câu rồi ạ. Anh/chị gọi 0947 844 446 hoặc nhắn Zalo để kỹ thuật viên hỗ trợ tiếp nhé!' : 'Đã hết lượt hỏi Maika hôm nay', choGiay: 3600 }, 429)
