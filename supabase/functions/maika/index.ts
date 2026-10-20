@@ -144,19 +144,26 @@ async function vectorCauHoi(text: string): Promise<number[] | null> {
 
 const doiHang = (r: any) => ({ loai: r.loai, tieuDe: r.tieu_de, noiDung: r.noi_dung, nguon: r.nguon || '' })
 
-// Từ khoá: chấm điểm theo số từ khớp (tiêu đề nặng gấp đôi) — tìm được cả đoạn CHƯA có vector
-// (embedding free có hạn mức/ngày, kho mới nạp phải vài ngày mới đủ vector)
-const TU_BO_QUA = new Set(['không', 'nào', 'bao', 'nhiêu', 'được', 'những', 'phù', 'hợp', 'shop', 'mình', 'cho', 'của', 'với', 'này', 'như', 'thế', 'loại', 'dùng', 'có', 'bị', 'gì', 'là', 'và', 'thì', 'sao'])
+// Từ khoá — tìm được cả đoạn CHƯA có vector (embedding free có hạn mức/ngày, kho mới nạp phải vài ngày mới đủ vector).
+// Tiếng Việt: 1 từ đơn ("tấm", "công") khớp gần như mọi đoạn → chấm theo CỤM 2 TỪ liền nhau ("tấm ốp",
+// "giả đá", "ốp tường") là chính, từ đơn chỉ cộng thêm. Giữ cả từ 2 ký tự ("ốp", "đá", "pu").
+const TU_BO_QUA = new Set(['không', 'nào', 'bao', 'nhiêu', 'được', 'những', 'phù', 'hợp', 'shop', 'mình', 'cho', 'của', 'với', 'này', 'như', 'thế', 'loại', 'dùng', 'có', 'bị', 'gì', 'là', 'và', 'thì', 'sao', 'em', 'anh', 'chị', 'ạ', 'ơi', 'nhé', 'vậy', 'làm', 'hay', 'nên', 'cần', 'muốn', 'hỏi', 'giúp', 'tôi', 'bên', 'mấy', 'khi', 'đâu', 'ra', 'đi', 'lại', 'thể', 'các', 'một', 'cái'])
 async function timTuKhoa(text: string, k: number) {
-  const tu = [...new Set(text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 3 && !TU_BO_QUA.has(w)))].slice(0, 8)
+  const day = text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 2 && !TU_BO_QUA.has(w))
+  const tu = [...new Set(day)].slice(0, 8)
   if (!tu.length) return []
-  const mau = tu.map((w) => `%${w}%`)
+  const cum = [...new Set(day.slice(0, -1).map((w, i) => `${w} ${day[i + 1]}`))].slice(0, 8)
+  const mauTu = tu.map((w) => `%${w}%`)
+  const mauCum = cum.map((c) => `%${c}%`)
+  const mauLoc = mauCum.length ? mauCum : mauTu // có cụm → bắt buộc khớp ít nhất 1 cụm
   return await sql`
     select loai, tieu_de, noi_dung, nguon,
-      (select count(*) from unnest(${mau}::text[]) m where t.tieu_de ilike m) * 2 +
-      (select count(*) from unnest(${mau}::text[]) m where t.noi_dung ilike m) as diem
+      (select count(*) from unnest(${mauCum}::text[]) m where t.tieu_de ilike m) * 6 +
+      (select count(*) from unnest(${mauCum}::text[]) m where t.noi_dung ilike m) * 3 +
+      (select count(*) from unnest(${mauTu}::text[]) m where t.tieu_de ilike m) * 2 +
+      (select count(*) from unnest(${mauTu}::text[]) m where t.noi_dung ilike m) as diem
     from public.tri_thuc t
-    where trang_thai = 'da_duyet' and not da_xoa and (tieu_de ilike any(${mau}) or noi_dung ilike any(${mau}))
+    where trang_thai = 'da_duyet' and not da_xoa and (tieu_de ilike any(${mauLoc}) or noi_dung ilike any(${mauLoc}))
     order by (loai = 'sua_sai') desc, diem desc, cap_nhat_luc desc limit ${k}`
 }
 
