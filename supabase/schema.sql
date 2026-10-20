@@ -293,8 +293,42 @@ begin
   insert into public.zalo_cap_quyen (state, verifier) values (p_state, p_verifier);
 end $$;
 
+-- ---------- THÔNG BÁO ĐẨY (Firebase Cloud Messaging) ----------
+-- Mỗi máy cài app đăng ký token FCM; kèm đúng PIN Admin → nhận cả tin chỉ dành cho Admin (hoá đơn mới, bản tin)
+create table if not exists public.thiet_bi (
+  token        text primary key,
+  ten          text not null default '',
+  nen_tang     text not null default 'android',
+  la_admin     boolean not null default false,
+  cap_nhat_luc timestamptz not null default now()
+);
+alter table public.thiet_bi enable row level security;
+revoke all on public.thiet_bi from anon, authenticated;
+
+create or replace function public.dang_ky_thiet_bi(p_token text, p_ten text, p_nen_tang text, p_pin text default null)
+returns boolean language plpgsql security definer set search_path = public, extensions as $$
+declare ad boolean := coalesce(p_pin, '') <> '' and public._pin_dung(p_pin);
+begin
+  if length(coalesce(p_token, '')) < 20 or length(p_token) > 4096 then
+    raise exception 'Token thiết bị không hợp lệ';
+  end if;
+  insert into public.thiet_bi (token, ten, nen_tang, la_admin, cap_nhat_luc)
+  values (p_token, left(coalesce(p_ten, ''), 100), left(coalesce(p_nen_tang, 'android'), 20), ad, now())
+  on conflict (token) do update set ten = excluded.ten, nen_tang = excluded.nen_tang, la_admin = excluded.la_admin, cap_nhat_luc = now();
+  delete from public.thiet_bi where cap_nhat_luc < now() - interval '120 days';
+  return ad;
+end $$;
+
+-- Hoá đơn KiotViet đã báo (webhook invoice.update bắn cả lúc tạo lẫn lúc sửa → chỉ báo lần đầu)
+create table if not exists public.hoa_don_da_bao (
+  ma  text primary key,
+  luc timestamptz not null default now()
+);
+alter table public.hoa_don_da_bao enable row level security;
+revoke all on public.hoa_don_da_bao from anon, authenticated;
+
 grant execute on function public.kiem_tra_pin(text), public.de_xuat_sua_sai(text, text, text, text, text),
-  public.admin_zalo_bat_dau(text, text, text),
+  public.admin_zalo_bat_dau(text, text, text), public.dang_ky_thiet_bi(text, text, text, text),
   public.admin_ghi(text, jsonb), public.admin_gan_vector(text, jsonb), public.admin_xoa(text, text[]),
   public.tim_tri_thuc(extensions.vector, int, float),
   public.admin_doc_nhat_ky(text, int), public.admin_xong_nhat_ky(text, bigint[], text),

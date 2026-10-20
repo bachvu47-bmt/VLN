@@ -1,0 +1,30 @@
+name: Báo có bản app mới
+
+# "Build & Release" xong thành công → đẩy thông báo "Có bản vX.Y.Z" xuống mọi máy cài app
+# (workflow_run chạy được cả khi Release do GITHUB_TOKEN tạo — sự kiện release thì không).
+on:
+  workflow_run:
+    workflows: ['Build & Release']
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  bao:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Đẩy thông báo
+        env:
+          URL: ${{ secrets.VITE_SUPABASE_URL }}
+          PIN: ${{ secrets.MAIKA_ADMIN_PIN }}
+          PHIEN_BAN: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          body=$(node -e '
+            const v = process.env.PHIEN_BAN
+            console.log(JSON.stringify({ pin: process.env.PIN, kenh: "cap-nhat",
+              tieuDe: "⬆️ VatLieuNha Sales có bản mới " + v,
+              noiDung: "Chạm để mở app và cập nhật.", duLieu: { man: "cap-nhat", phienBan: v } }))')
+          curl -sS -m 60 -X POST "$URL/functions/v1/thong-bao" -H 'Content-Type: application/json' -d "$body"; echo

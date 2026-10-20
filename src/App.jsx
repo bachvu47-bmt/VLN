@@ -12,6 +12,7 @@ import { useToast } from './context/ToastContext'
 import { napKiotViet } from './services/kiotViet'
 import { napTheCao } from './services/triThucCao'
 import { batDauJobFollowUp, SO_NGAY_FOLLOW_UP } from './services/followUpTuDong'
+import { batDauThongBaoDay } from './services/thongBaoDay'
 import LoginScreen from './screens/LoginScreen'
 import HomeScreen from './screens/HomeScreen'
 import LookupScreen from './screens/LookupScreen'
@@ -65,6 +66,23 @@ export default function App() {
       dung()
       listener?.remove?.()
     }
+  }, [user, toast])
+
+  // Thông báo đẩy (Android): hoá đơn KiotViet mới (Admin), có bản app mới — chạm vào mở đúng màn
+  useEffect(() => {
+    if (!user) return
+    let go = () => {}
+    batDauThongBaoDay(user, {
+      onMo: (d) => {
+        if (d.man === 'cap-nhat') setHienCapNhat(true)
+        else if (d.man === 'baocao' && user.vaiTro === 'admin') setOverlay({ type: 'baocao' })
+        else setTab('home')
+      },
+      onDen: (n) => toast(`${n.title || 'Maika'}${n.body ? ' — ' + n.body : ''}`, 'info'),
+    })
+      .then((f) => (go = f))
+      .catch((e) => console.warn('[Thông báo đẩy]', e.message))
+    return () => go()
   }, [user, toast])
 
   // Proactive: báo giá trên Google Sheet quá 2 ngày chưa chốt → Maika tự tạo việc follow-up cho sales phụ trách

@@ -41,6 +41,10 @@ signing/
 # Capacitor
 .capacitor/
 
+# Khoá máy chủ Firebase (service account) — chỉ đưa vào Supabase Secrets, KHÔNG lên repo công khai
+*firebase-adminsdk*.json
+*service-account*.json
+
 # Supabase CLI (file tạm khi deploy hàm)
 supabase/.temp/
 

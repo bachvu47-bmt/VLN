@@ -29,6 +29,19 @@ export async function luuPinAdmin(pin) {
   } catch {
     /* bỏ qua */
   }
+  // Máy đã đăng ký thông báo đẩy trước khi nhập PIN → đăng ký lại để nhận tin chỉ dành cho Admin
+  const token = docLS(LS_FCM)
+  if (token) dangKyThietBi(token, docLS(LS_FCM_TEN)).catch(() => {})
+}
+
+export const LS_FCM = 'vln_fcm_token'
+export const LS_FCM_TEN = 'vln_fcm_ten'
+function docLS(k) {
+  try {
+    return localStorage.getItem(k) || ''
+  } catch {
+    return ''
+  }
 }
 
 export function xoaPinAdmin() {
@@ -68,6 +81,11 @@ async function goi(duongDan, { method = 'GET', body } = {}) {
 }
 
 const rpc = (ten, thamSo) => goi(`rpc/${ten}`, { method: 'POST', body: thamSo })
+
+// ---- Thông báo đẩy: đăng ký token FCM của máy (kèm PIN Admin nếu có → nhận cả tin chỉ dành cho Admin) ----
+export function dangKyThietBi(token, ten, nenTang = 'android') {
+  return rpc('dang_ky_thiet_bi', { p_token: token, p_ten: ten, p_nen_tang: nenTang, p_pin: layPinAdmin() || null })
+}
 
 // ---- Chuyển đổi bản ghi máy chủ (snake_case) ↔ app (camelCase) ----
 export function tuMayChu(r) {

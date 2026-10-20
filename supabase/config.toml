@@ -8,3 +8,11 @@ verify_jwt = false
 [functions.zalo]
 # Zalo gọi webhook không kèm JWT — hàm tự kiểm chữ ký X-ZEvent-Signature
 verify_jwt = false
+
+[functions.kiotviet]
+# KiotViet gọi webhook không kèm JWT — hàm tự kiểm chữ ký X-Hub-Signature
+verify_jwt = false
+
+[functions.thong-bao]
+# GitHub Actions gọi kèm PIN Admin (hàm tự kiểm PIN)
+verify_jwt = false

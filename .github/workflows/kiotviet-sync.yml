@@ -34,6 +34,9 @@ jobs:
           KV_CLIENT_ID: ${{ secrets.KV_CLIENT_ID }}
           KV_CLIENT_SECRET: ${{ secrets.KV_CLIENT_SECRET }}
           KV_MA_DU_LIEU: ${{ secrets.KV_MA_DU_LIEU }}
+          # Webhook hoá đơn → hàm "kiotviet" (Supabase) báo Admin ngay; script tự đăng ký nếu chưa có
+          KV_WEBHOOK_SECRET: ${{ secrets.KV_WEBHOOK_SECRET }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
         run: |
           mkdir -p /tmp/du-lieu
           node scripts/kiotviet-sync.mjs /tmp/du-lieu/kiotviet.bin

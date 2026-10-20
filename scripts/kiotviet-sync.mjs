@@ -7,7 +7,7 @@
 //  Định dạng: "VLN1" | salt(16) | iv(12) | ciphertext+tag
 //  Dùng: KV_CLIENT_ID=… KV_CLIENT_SECRET=… KV_MA_DU_LIEU=… node scripts/kiotviet-sync.mjs <file-ra>
 // ============================================================
-import { createCipheriv, pbkdf2Sync, randomBytes } from 'node:crypto'
+import { createCipheriv, createHash, pbkdf2Sync, randomBytes } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
 import { gzipSync } from 'node:zlib'
 
@@ -49,6 +49,26 @@ async function layHet(duongDan, dung = () => false) {
   }
   return ds
 }
+
+// Webhook hoá đơn → hàm máy chủ "kiotviet" đẩy thông báo cho Admin NGAY khi có hoá đơn (không chờ 30 phút).
+// Tự đăng ký nếu chưa có; mô tả chứa dấu vân tay khoá bí mật → đổi khoá thì xoá webhook cũ, đăng ký lại.
+async function damBaoWebhook() {
+  const { KV_WEBHOOK_SECRET, VITE_SUPABASE_URL } = process.env
+  if (!KV_WEBHOOK_SECRET || !VITE_SUPABASE_URL) return console.log('• Bỏ qua webhook hoá đơn (thiếu KV_WEBHOOK_SECRET / VITE_SUPABASE_URL)')
+  const url = VITE_SUPABASE_URL.replace(/\/$/, '') + '/functions/v1/kiotviet'
+  const moTa = 'Maika bao hoa don ' + createHash('sha256').update(KV_WEBHOOK_SECRET).digest('hex').slice(0, 10)
+  const ds = (await get('/webhooks')).data || []
+  const cua = ds.filter((w) => (w.url || w.Url) === url)
+  if (cua.some((w) => (w.description || w.Description) === moTa && (w.isActive ?? w.IsActive))) return
+  for (const w of cua) await fetch(`https://public.kiotapi.com/webhooks/${w.id || w.Id}`, { method: 'DELETE', headers: H })
+  const r = await fetch('https://public.kiotapi.com/webhooks', {
+    method: 'POST',
+    headers: { ...H, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ Webhook: { Type: 'invoice.update', Url: url, IsActive: true, Description: moTa, Secret: Buffer.from(KV_WEBHOOK_SECRET).toString('base64') } }),
+  })
+  console.log(`• Đăng ký webhook hoá đơn → ${r.status} ${(await r.text()).slice(0, 150)}`)
+}
+await damBaoWebhook().catch((e) => console.warn('⚠ Webhook hoá đơn:', e.message))
 
 const chiNhanh = (await get('/branches?pageSize=100')).data.map((b) => ({ id: b.id, ten: b.branchName }))
 

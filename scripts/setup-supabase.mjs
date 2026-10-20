@@ -12,7 +12,7 @@
 // ============================================================
 import { execFileSync } from 'node:child_process'
 import { randomBytes, randomInt } from 'node:crypto'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -74,6 +74,26 @@ if (pinMoi) {
   console.log('• Giữ nguyên PIN Admin đang có')
 }
 
+function docServiceAccount() {
+  const f = readdirSync(ROOT).find((x) => /firebase-adminsdk.*\.json$/i.test(x))
+  if (!f) return ''
+  const sa = JSON.parse(readFileSync(join(ROOT, f), 'utf8'))
+  if (!sa.private_key || !sa.client_email) throw new Error(`${f} không phải file khoá service account`)
+  console.log(`• Khoá Firebase: ${f} (project ${sa.project_id})`)
+  return JSON.stringify(sa)
+}
+// Tạo 1 lần, giữ trong .env.local (KV_WEBHOOK_SECRET) để GitHub Secret và Supabase Secret luôn trùng nhau
+function khoaWebhookKiotViet() {
+  let k = docEnv('KV_WEBHOOK_SECRET')
+  if (!k) {
+    k = randomBytes(24).toString('hex')
+    env = env.replace(/\s*$/, '') + `\n\n# Khoá bí mật webhook hoá đơn KiotViet (trùng GitHub Secret KV_WEBHOOK_SECRET)\nKV_WEBHOOK_SECRET=${k}\n`
+    writeFileSync(envPath, env, 'utf8')
+    console.log('• Đã tạo KV_WEBHOOK_SECRET trong .env.local — chạy scripts/dat-secret-kho-chung.cjs để đưa lên GitHub')
+  }
+  return k
+}
+
 // 4) Secrets: key AI chỉ nằm trên máy chủ
 const secrets = [
   ['GEMINI_API_KEY', docEnv('VITE_GEMINI_API_KEY')],
@@ -84,6 +104,10 @@ const secrets = [
   ['ZALO_OA_SECRET', docEnv('ZALO_OA_SECRET')],
   // Khoá nội bộ hàm "zalo" → hàm "maika" (đếm lượt theo từng khách Zalo); mỗi lần cài tạo mới
   ['MAIKA_KHOA_NOI', randomBytes(24).toString('hex')],
+  // Thông báo đẩy: file khoá service account Firebase (*firebase-adminsdk*.json ở thư mục gốc, gitignore)
+  ['FCM_SERVICE_ACCOUNT', docServiceAccount()],
+  // Webhook hoá đơn KiotViet: khoá bí mật dùng chung với GitHub Secret KV_WEBHOOK_SECRET
+  ['KV_WEBHOOK_SECRET', khoaWebhookKiotViet()],
 ].filter(([, v]) => v)
 if (secrets.length) {
   await api(`/projects/${ref}/secrets`, { method: 'POST', body: JSON.stringify(secrets.map(([name, value]) => ({ name, value }))) })
@@ -94,7 +118,7 @@ if (secrets.length) {
 
 // 5) Deploy hàm "maika" (Supabase CLI bundle trên máy chủ, không cần Docker)
 if (!process.env.BO_QUA_HAM) {
-  for (const ham of ['maika', 'zalo']) {
+  for (const ham of ['maika', 'zalo', 'kiotviet', 'thong-bao']) {
     if (!existsSync(join(ROOT, 'supabase', 'functions', ham))) continue
     execFileSync('npx', ['--yes', 'supabase@latest', 'functions', 'deploy', ham, '--project-ref', ref, '--use-api', '--no-verify-jwt'], {
       cwd: ROOT,

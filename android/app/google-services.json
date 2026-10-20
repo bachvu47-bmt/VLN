@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "529121187805",
+    "project_id": "vln-maika-37135",
+    "storage_bucket": "vln-maika-37135.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:529121187805:android:bfab4652b126683e4c8834",
+        "android_client_info": {
+          "package_name": "vn.vatlieunha.sales"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD6H7c9mm_C1hRisoHDoI7J4S7e46dSL-Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

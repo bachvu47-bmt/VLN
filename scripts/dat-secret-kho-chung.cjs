@@ -26,6 +26,8 @@ const secrets = {
   // Workflow deploy-maika.yml: đẩy code supabase/functions lên GitHub → tự deploy hàm maika
   SUPABASE_ACCESS_TOKEN: docFile('.supabase-token.local').trim(),
   SUPABASE_PROJECT_REF: (url.match(/^https:\/\/([a-z0-9]+)\.supabase\.co/) || [])[1] || '',
+  // Webhook hoá đơn KiotViet: kiotviet-sync.yml dùng để đăng ký webhook (trùng Supabase Secret cùng tên)
+  KV_WEBHOOK_SECRET: docEnv('KV_WEBHOOK_SECRET'),
 }
 for (const [ten, v] of Object.entries(secrets)) if (!v) throw new Error(`Thiếu giá trị ${ten} — chạy scripts/setup-supabase.mjs trước`)
 
