@@ -240,7 +240,8 @@
     var thanh = document.querySelector('nav.footer-mb')
     var fab = null
     var cuonCu = ''
-    function laDiDong() { return !!(thanh && thanh.offsetParent !== null && o) }
+    // offsetParent luôn null với phần tử position:fixed (nav.footer-mb) → dùng display thật của thanh
+    function laDiDong() { return !!(thanh && o && getComputedStyle(thanh).display !== 'none') }
     function mo() {
       var dd = laDiDong()
       hop.classList.toggle('mkw-dd', dd)
