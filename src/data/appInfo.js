@@ -3,7 +3,7 @@
 // ============================================================
 
 // Phiên bản hiện đang chạy trên thiết bị
-export const PHIEN_BAN_HIEN_TAI = '1.1.16'
+export const PHIEN_BAN_HIEN_TAI = '1.1.17'
 
 // ---- Cấu hình GitHub Releases (nguồn cập nhật OTA) ----
 // ⚠️ Đổi owner/repo thành repo GitHub thật của bạn.
@@ -18,12 +18,17 @@ export const GITHUB_API_LATEST = `https://api.github.com/repos/${GITHUB_REPO.own
 // Dữ liệu "server nội bộ" trả về khi kiểm tra cập nhật (mock).
 // Trong thực tế, dữ liệu này đến từ GitHub Releases API ở trên.
 export const BAN_CAP_NHAT_SERVER = {
-  phienBan: '1.1.16',
-  ngayPhatHanh: '2026-10-19',
+  phienBan: '1.1.17',
+  ngayPhatHanh: '2026-10-20',
   batBuoc: false, // true => chặn dùng app cho tới khi cập nhật
-  tieuDe: 'Sửa lỗi cập nhật báo "Không có link .apk để tải"',
+  tieuDe: 'Maika một bộ não chung cho app & website — bán gì học nấy',
   kichThuocMB: { exe: 108, apk: 3.6 },
   changelog: [
+    { loai: 'moi', noiDung: 'Maika dùng chung một bộ não với Maika trên vatlieunha.vn: tri thức, đính chính của Admin và vector nằm trên máy chủ, mọi máy cùng dùng.' },
+    { loai: 'moi', noiDung: 'Bán gì học nấy: mỗi sản phẩm đang bán có hồ sơ riêng — công dụng, thi công ở đâu, định mức, chống chỉ định, điểm mạnh, giải pháp đi kèm.' },
+    { loai: 'caitien', noiDung: 'Cào trang Sika, Jotun, Maxbond chỉ học sản phẩm cửa hàng đang bán, thẻ tri thức theo đúng khung hồ sơ.' },
+    { loai: 'caitien', noiDung: 'Hỏi về một sản phẩm → Maika trả lời theo hồ sơ; mục nào chưa có dữ liệu thì không tự điền.' },
+    { loai: 'sualoi', noiDung: 'Báo cáo: lấy đúng hình thức thanh toán hoá đơn KiotViet (Tiền mặt / Chuyển khoản).' },
     { loai: 'sualoi', noiDung: 'Sửa lỗi bản cập nhật báo "chưa có link để tải": chỉ báo có bản mới khi file cài cho đúng máy đã sẵn sàng, và kiểm tra lại ngay lúc bấm tải.' },
     { loai: 'moi', noiDung: 'Mỗi ngày 2 lần (5:30, 12:30) Maika đọc trang sản phẩm Sika, Jotun, Maxbond mới/vừa cập nhật và tóm tắt thành thẻ tri thức.' },
     { loai: 'moi', noiDung: 'Duyệt kiến thức: lọc theo nguồn, mở link trang gốc, duyệt nhanh các thẻ có độ tin cậy cao — duyệt xong Maika học ngay.' },

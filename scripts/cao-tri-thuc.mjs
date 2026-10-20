@@ -5,7 +5,11 @@
 //  hàng chờ duyệt HITL; duyệt xong Maika mới học).
 //  Lịch sự với nguồn: tự xưng bot, nghỉ 1.2s/trang, tuân robots.txt (không URL có "?"),
 //  mỗi lần ≤ GIOI_HAN trang/nguồn → phủ dần cả catalogue trong vài tuần.
+//  BÁN GÌ HỌC NẤY: chỉ học trang của sản phẩm đang bán trên vatlieunha.vn; trang hướng dẫn
+//  chỉ giữ khi nhắc tới sản phẩm đang bán. Mỗi thẻ theo khung hồ sơ: công dụng · thi công ở đâu
+//  · định mức · chống chỉ định · điểm mạnh · giải pháp đi kèm.
 //  Dùng: GROQ_API_KEY=… node scripts/cao-tri-thuc.mjs <thư-mục-dữ-liệu>
+//  Thử khớp sản phẩm (không gọi Groq): DRY_RUN=1 node scripts/cao-tri-thuc.mjs
 // ============================================================
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -16,7 +20,8 @@ const GROQ_KEY = process.env.GROQ_API_KEY
 const GIOI_HAN = Number(process.env.GIOI_HAN_MOI_NGUON || 8)
 const GIU_THE = 300 // số thẻ gần nhất giữ trong tri-thuc-moi.json
 const UA = 'Mozilla/5.0 (compatible; VLN-Maika-Bot/1.0; +https://vatlieunha.vn)'
-if (!GROQ_KEY) throw new Error('Thiếu GROQ_API_KEY')
+const DRY_RUN = !!process.env.DRY_RUN
+if (!GROQ_KEY && !DRY_RUN) throw new Error('Thiếu GROQ_API_KEY')
 
 const NGUON = [
   {
@@ -28,6 +33,8 @@ const NGUON = [
     ],
     // Xây dựng + kênh bán lẻ (chống thấm, sửa chữa, hoàn thiện), bỏ nhóm công nghiệp (tàu thuyền, ô tô…)
     loc: /^https:\/\/vnm\.sika\.com\/vi\/(xay-d-ng|kenh-phan-ph-i-banl|phuong-phap-thi-cong-san-pham-sika|knowledge-hub|products)\/.+\.html$/,
+    // Trang hướng dẫn/giải pháp (không phải trang 1 sản phẩm) → giữ nếu nhắc SP đang bán
+    huongDan: /\/vi\/(phuong-phap-thi-cong-san-pham-sika|knowledge-hub)\//,
   },
   {
     ten: 'Jotun Việt Nam',
@@ -44,6 +51,32 @@ const NGUON = [
 
 const ngu = (ms) => new Promise((r) => setTimeout(r, ms))
 const bam = (s) => createHash('sha1').update(s).digest('hex').slice(0, 16)
+
+// ---- Danh mục ĐANG BÁN (vatlieunha.vn) → khoá so khớp: bỏ dấu, chỉ giữ chữ-số ----
+// "Sikaproof® Membrane – Chống thấm" → "sikaproofmembranechongtham"
+const khoa = (s = '') =>
+  s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').toLowerCase().replace(/[^a-z0-9]/g, '')
+const DANG_BAN = []
+for (let page = 1; page <= 20; page++) {
+  const r = await fetch(`https://vatlieunha.vn/wp-json/wc/store/v1/products?per_page=100&page=${page}`, { headers: { Accept: 'application/json', 'User-Agent': UA } })
+  if (!r.ok) throw new Error(`Không lấy được danh mục đang bán (WooCommerce HTTP ${r.status})`)
+  const ds = await r.json()
+  if (!Array.isArray(ds) || !ds.length) break
+  DANG_BAN.push(...ds.map((p) => khoa(String(p.name || '').replace(/&#\d+;|&[a-z]+;/gi, ' '))).filter(Boolean))
+  if (ds.length < 100) break
+}
+if (!DANG_BAN.length) throw new Error('Danh mục đang bán rỗng — dừng để không học sản phẩm cửa hàng không bán')
+const dangBan = (ten) => {
+  const k = khoa(ten)
+  return k.length >= 4 && DANG_BAN.some((c) => c.includes(k))
+}
+// Tên SP trong đường dẫn: ".../sikaproof-r-membrane.html" → "sikaproof membrane" (bỏ ®/™)
+const tenTuUrl = (url) =>
+  decodeURIComponent(url.replace(/\/$/, '').split('/').pop().replace(/\.html$/, ''))
+    .split('-')
+    .filter((t) => t && !['r', 'tm'].includes(t))
+    .join(' ')
+console.log(`• Danh mục đang bán: ${DANG_BAN.length} sản phẩm`)
 
 async function lay(url) {
   const r = await fetch(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'vi,en;q=0.5' }, signal: AbortSignal.timeout(25000) })
@@ -74,9 +107,23 @@ function trichNoiDung(html) {
 
 // ---- Groq tóm tắt (xoay model khi gặp giới hạn 8.000 token/phút) ----
 const MODELS = ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-20b']
-const SYS = `Bạn là kỹ sư vật liệu xây dựng của cửa hàng "Vật Liệu Nhà". Đọc nội dung trang web của nhà sản xuất và trích TRI THỨC KỸ THUẬT dùng để tư vấn bán hàng.
-Trả về DUY NHẤT JSON: {"laTriThuc": true|false, "tieuDe": "Tên sản phẩm/chủ đề ngắn gọn", "tomTat": "1-2 câu: sản phẩm là gì, dùng cho đâu", "cacY": ["ý kỹ thuật rời, giữ nguyên số liệu: công dụng, ưu điểm, định mức, tỷ lệ pha, thời gian khô, điều kiện thi công, đóng gói, cảnh báo"], "sanPham": ["tên sản phẩm được nhắc"], "doTinCay": 0-100}
-laTriThuc=false nếu trang chỉ là danh mục/điều hướng/tin tức sự kiện/tuyển dụng không có thông số kỹ thuật. Viết tiếng Việt. Không bịa số liệu không có trong trang.`
+const SYS = `Bạn là kỹ sư vật liệu xây dựng của cửa hàng "Vật Liệu Nhà". Đọc nội dung trang web của nhà sản xuất và lập HỒ SƠ SẢN PHẨM dùng để tư vấn bán hàng.
+Trả về DUY NHẤT JSON: {"laTriThuc": true|false, "tieuDe": "Tên sản phẩm (đúng tên thương mại)", "tomTat": "1 câu: sản phẩm là gì",
+"hoSo": {"congDung": "Sản phẩm để làm gì, giải quyết vấn đề gì", "viTriThiCong": "Thi công ở đâu: hạng mục (sàn mái, WC, tầng hầm, tường ngoài…), loại bề mặt (bê tông, vữa, gạch, kim loại…), trong nhà/ngoài trời", "dinhMuc": "Định mức tiêu thụ, giữ nguyên số + đơn vị + số lớp/độ dày", "chongChiDinh": "Không dùng cho/khi nào: bề mặt, điều kiện (độ ẩm, nhiệt độ, ngâm nước, nước uống, giao thông…), giới hạn của sản phẩm", "diemManh": "Điểm mạnh nổi bật so với cách làm thông thường", "giaiPhapDiKem": "Sản phẩm/hệ đi kèm nhà sản xuất khuyến nghị: lớp lót, lớp phủ, lưới gia cường, băng cản nước, keo xử lý cổ ống, phụ gia…"},
+"cacY": ["thông số khác giữ nguyên số liệu: tỷ lệ pha, thời gian khô/chờ giữa lớp, điều kiện thi công, đóng gói, hạn dùng"], "sanPham": ["tên các sản phẩm được nhắc"], "doTinCay": 0-100}
+Mục nào trang KHÔNG nói tới → để chuỗi rỗng "", TUYỆT ĐỐI không suy đoán hay bịa số liệu. Trang hướng dẫn/giải pháp (nhiều sản phẩm) → tieuDe là tên giải pháp, hoSo mô tả cả hệ.
+laTriThuc=false nếu trang chỉ là danh mục/điều hướng/tin tức sự kiện/tuyển dụng không có thông tin kỹ thuật. Viết tiếng Việt.`
+
+// Đổi khung hồ sơ → tăng số này: trang đã học theo khung cũ được học lại một lần
+const KHUNG = 2
+const NHAN_HO_SO = [
+  ['congDung', 'Công dụng'],
+  ['viTriThiCong', 'Thi công ở đâu'],
+  ['dinhMuc', 'Định mức'],
+  ['chongChiDinh', 'Chống chỉ định'],
+  ['diemManh', 'Điểm mạnh'],
+  ['giaiPhapDiKem', 'Giải pháp đi kèm'],
+]
 
 async function tomTat(text, url) {
   for (let vong = 0; vong < 6; vong++) {
@@ -124,11 +171,19 @@ for (const ng of NGUON) {
     continue
   }
   urls = [...new Map(urls.map((x) => [x.url, x])).values()]
-  // Ưu tiên: trang chưa từng xử lý → trang có lastmod mới hơn lần xử lý trước
+  // Bán gì học nấy: trang 1 sản phẩm chỉ giữ khi SP đó đang bán; trang hướng dẫn lọc sau khi đọc
+  const tongTrang = urls.length
+  urls = urls.map((x) => ({ ...x, huongDan: !!ng.huongDan?.test(x.url) })).filter((x) => x.huongDan || dangBan(tenTuUrl(x.url)))
+  // Ưu tiên: trang sản phẩm trước hướng dẫn → chưa từng xử lý → lastmod mới hơn lần xử lý trước
   const canXuLy = urls
-    .filter((x) => !trangThai[x.url] || (x.lastmod && Date.parse(x.lastmod) > trangThai[x.url].t))
-    .sort((a, b) => !!trangThai[a.url] - !!trangThai[b.url] || (b.lastmod || '').localeCompare(a.lastmod || ''))
-  console.log(`[${ng.ten}] ${urls.length} trang · ${Object.keys(trangThai).filter((u) => urls.some((x) => x.url === u)).length} đã xử lý · ${canXuLy.length} chờ`)
+    .filter((x) => trangThai[x.url]?.v !== KHUNG || (x.lastmod && Date.parse(x.lastmod) > trangThai[x.url].t))
+    .sort((a, b) => a.huongDan - b.huongDan || !!trangThai[a.url] - !!trangThai[b.url] || (b.lastmod || '').localeCompare(a.lastmod || ''))
+  const soSP = urls.filter((x) => !x.huongDan).length
+  console.log(`[${ng.ten}] ${tongTrang} trang · ${soSP} trang SP đang bán + ${urls.length - soSP} hướng dẫn · ${canXuLy.length} chờ`)
+  if (DRY_RUN) {
+    urls.filter((x) => !x.huongDan).forEach((x) => console.log(`    ${tenTuUrl(x.url)}`))
+    continue
+  }
 
   let lam = 0
   for (const x of canXuLy) {
@@ -138,11 +193,20 @@ for (const ng of NGUON) {
       const text = trichNoiDung(await lay(x.url))
       const h = bam(text)
       const cu = trangThai[x.url]
-      trangThai[x.url] = { h, t: Date.now() }
-      if (cu?.h === h || text.length < 300) continue // nội dung không đổi / trang quá ngắn
+      trangThai[x.url] = { h, t: Date.now(), v: KHUNG }
+      if ((cu?.h === h && cu?.v === KHUNG) || text.length < 300) continue // nội dung không đổi / trang quá ngắn
       const kq = await tomTat(text, x.url)
-      if (!kq.laTriThuc || !kq.cacY?.length) {
+      const hoSo = kq.hoSo || {}
+      const cacY = [
+        ...NHAN_HO_SO.filter(([k]) => String(hoSo[k] || '').trim()).map(([k, nhan]) => `${nhan}: ${String(hoSo[k]).trim()}`),
+        ...(kq.cacY || []).map(String),
+      ]
+      if (!kq.laTriThuc || !cacY.length) {
         console.log(`  · bỏ (không phải tri thức kỹ thuật): ${x.url}`)
+        continue
+      }
+      if (x.huongDan && !(kq.sanPham || []).some((t) => dangBan(String(t)))) {
+        console.log(`  · bỏ (hướng dẫn không nhắc SP đang bán): ${x.url}`)
         continue
       }
       kho.the.unshift({
@@ -151,7 +215,7 @@ for (const ng of NGUON) {
         url: x.url,
         tieuDe: String(kq.tieuDe || '').slice(0, 120),
         tomTat: String(kq.tomTat || ''),
-        cacY: kq.cacY.map(String).slice(0, 15),
+        cacY: cacY.slice(0, 18),
         sanPham: (kq.sanPham || []).map(String).slice(0, 8),
         doTinCay: Number(kq.doTinCay) || 0,
         capNhat: !!cu, // trang đã có trước đây nhưng nội dung đổi

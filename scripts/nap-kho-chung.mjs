@@ -5,13 +5,17 @@
 //  Việc làm (giống hệt nút "Đồng bộ website" trên máy Admin, cùng hàm src/services/sanPhamWeb.js):
 //   1) lấy toàn bộ sản phẩm WooCommerce Store API → đoạn tri thức 'web'
 //   2) ghi đoạn mới/đổi qua RPC admin_ghi (PIN Admin), xoá đoạn của SP đã gỡ khỏi web
-//   3) vector hoá đoạn chưa có vector (Gemini embedding 768 chiều) — gặp giới hạn free thì
+//   3) HỒ SƠ SẢN PHẨM (bán gì học nấy): Groq đọc mô tả từng SP → 1 thẻ 'hs:<spId>' theo khung
+//      công dụng · thi công ở đâu · định mức · chống chỉ định · điểm mạnh · giải pháp đi kèm.
+//      loai 'tai_lieu' để nút "Đồng bộ website" (chỉ xoá loai 'web') không xoá mất. Mỗi lần
+//      ≤ HO_SO_MOI_LAN SP (giới hạn token/phút gói free) → phủ dần; mô tả không đổi thì không viết lại.
+//   4) vector hoá đoạn chưa có vector (Gemini embedding 768 chiều) — gặp giới hạn free thì
 //      dừng lịch sự, lần chạy sau / máy Admin học nốt (Maika vẫn tìm theo từ khoá khi thiếu vector)
 // ============================================================
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { doanTuSanPham, mapSanPham } from '../src/services/sanPhamWeb.js'
+import { bam, doanTuSanPham, mapSanPham } from '../src/services/sanPhamWeb.js'
 import { SO_CHIEU_VECTOR } from '../supabase/functions/_shared/maikaNao.js'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -20,6 +24,8 @@ const docEnv = (ten) => process.env[ten] || (env.match(new RegExp(`^${ten}=(.*)$
 const URL_KHO = docEnv('VITE_SUPABASE_URL').replace(/\/$/, '')
 const KEY = docEnv('VITE_SUPABASE_ANON_KEY')
 const GEMINI = docEnv('VITE_GEMINI_API_KEY')
+const GROQ = docEnv('VITE_GROQ_API_KEY')
+const HO_SO_MOI_LAN = Number(process.env.HO_SO_MOI_LAN || 150)
 const PIN = process.env.ADMIN_PIN || (existsSync(join(ROOT, '.admin-pin.local')) ? readFileSync(join(ROOT, '.admin-pin.local'), 'utf8').trim() : '')
 if (!URL_KHO || !KEY || !PIN) throw new Error('Thiếu VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY / PIN Admin — chạy scripts/setup-supabase.mjs trước')
 
@@ -70,14 +76,126 @@ for (let i = 0; i < canGhi.length; i += 200) {
 for (let i = 0; i < canXoa.length; i += 500) await rest('rpc/admin_xoa', { p_pin: PIN, p_ids: canXoa.slice(i, i + 500) })
 console.log(`✓ Ghi ${canGhi.length} đoạn mới/đổi · xoá ${canXoa.length} đoạn của SP đã gỡ`)
 
-// 3) Vector hoá đoạn còn thiếu
+// 3) Hồ sơ sản phẩm theo khung
+const KHUNG_HO_SO = 2 // đổi khung/lời dặn → tăng số này để viết lại toàn bộ hồ sơ
+const NHAN_HO_SO = [
+  ['congDung', 'Công dụng'],
+  ['viTriThiCong', 'Thi công ở đâu'],
+  ['dinhMuc', 'Định mức'],
+  ['chongChiDinh', 'Chống chỉ định'],
+  ['diemManh', 'Điểm mạnh'],
+  ['giaiPhapDiKem', 'Giải pháp đi kèm'],
+]
+const SYS_HO_SO = `Bạn là kỹ sư vật liệu xây dựng của cửa hàng "Vật Liệu Nhà". Đọc thông tin MỘT sản phẩm cửa hàng đang bán và lập HỒ SƠ SẢN PHẨM để tư vấn bán hàng.
+Trả về DUY NHẤT JSON: {"congDung": "Để làm gì, giải quyết vấn đề gì", "viTriThiCong": "Thi công ở đâu: hạng mục (sàn mái, WC, tầng hầm, tường ngoài…), loại bề mặt, trong nhà/ngoài trời", "dinhMuc": "Định mức tiêu thụ, giữ nguyên số + đơn vị + số lớp/độ dày", "chongChiDinh": "Không dùng cho/khi nào: bề mặt, điều kiện (độ ẩm, nhiệt độ, ngâm nước, nước uống…), giới hạn của sản phẩm", "diemManh": "Điểm mạnh nổi bật", "giaiPhapDiKem": "Sản phẩm/vật tư đi kèm mà bài NÊU RÕ (tên sản phẩm hoặc loại vật tư cụ thể): lớp lót, lớp phủ, lưới gia cường, băng cản nước, phụ gia…"}
+CHỈ dùng thông tin có trong bài. Không viết câu chung chung kiểu "có thể dùng… nếu cần", "thường đi kèm…" — bài không nêu thì để "". Mục nào bài KHÔNG nói tới → chuỗi rỗng "". TUYỆT ĐỐI không suy đoán, không bịa số liệu, không lấy thông tin của sản phẩm khác. Mỗi mục 1-3 câu ngắn, tiếng Việt.`
+const GROQ_MODELS = ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-20b']
+let vongModel = 0
+async function vietHoSo(baiSP) {
+  for (let lan = 0; lan < 9; lan++) {
+    const model = GROQ_MODELS[vongModel % GROQ_MODELS.length]
+    let r
+    try {
+      r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${GROQ}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          temperature: 0.1,
+          max_tokens: 1200,
+          response_format: { type: 'json_object' },
+          ...(model.includes('qwen') ? { reasoning_format: 'hidden' } : { reasoning_effort: 'low' }),
+          messages: [{ role: 'system', content: SYS_HO_SO }, { role: 'user', content: baiSP }],
+        }),
+        signal: AbortSignal.timeout(60000),
+      })
+    } catch {
+      await ngu(10000)
+      continue
+    }
+    if (r.status === 429) {
+      // giới hạn token/phút theo từng model → đổi model, cả vòng đều nghẽn thì chờ
+      vongModel++
+      if (lan % GROQ_MODELS.length === GROQ_MODELS.length - 1) await ngu(Math.max(Number(r.headers.get('retry-after')) || 0, 20) * 1000)
+      continue
+    }
+    if (!r.ok) throw new Error(`Groq ${model} HTTP ${r.status}: ${(await r.text()).slice(0, 150)}`)
+    const raw = (await r.json()).choices?.[0]?.message?.content || ''
+    return JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1))
+  }
+  throw new Error('Groq bận quá lâu')
+}
+
+const hoSoCu = new Map()
+for (let tu = 0; ; tu += 1000) {
+  const rows = await fetch(`${URL_KHO}/rest/v1/tri_thuc?select=id,hash,da_xoa,co_vector,sp_id,tieu_de,noi_dung&id=like.hs:*&order=id&offset=${tu}&limit=1000`, { headers: hdr }).then((r) => r.json())
+  rows.forEach((r) => hoSoCu.set(r.id, r))
+  if (rows.length < 1000) break
+}
+const spCon = new Set(sanPham.map((sp) => sp.id))
+const hoSoXoa = [...hoSoCu.values()].filter((r) => !r.da_xoa && !spCon.has(r.sp_id)).map((r) => r.id)
+if (hoSoXoa.length) await rest('rpc/admin_xoa', { p_pin: PIN, p_ids: hoSoXoa })
+const baiCua = (sp) =>
+  [`Tên: ${sp.ten}`, `Thương hiệu: ${sp.hang}`, `Danh mục: ${sp.nhom}`, sp.quyCach.length && `Quy cách: ${sp.quyCach.join(', ')}`, `Mô tả: ${sp.moTa}`]
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, 4000)
+const choViet = sanPham.filter((sp) => {
+  if ((sp.moTa || '').length < 120) return false // mô tả quá ngắn → không có gì để lập hồ sơ
+  const cu = hoSoCu.get('hs:' + sp.id)
+  return !cu || cu.da_xoa || cu.hash !== bam(KHUNG_HO_SO + baiCua(sp))
+})
+const hoSoMoi = []
+if (!GROQ) {
+  console.log('⚠ Thiếu VITE_GROQ_API_KEY — bỏ qua hồ sơ sản phẩm')
+} else {
+  console.log(`• Hồ sơ sản phẩm: ${choViet.length} SP cần viết (lần này ≤ ${HO_SO_MOI_LAN})`)
+  for (const sp of choViet.slice(0, HO_SO_MOI_LAN)) {
+    const bai = baiCua(sp)
+    let hs
+    try {
+      hs = await vietHoSo(bai)
+    } catch (e) {
+      console.log(`  ✗ ${sp.ten}: ${e.message}`)
+      if (/bận quá lâu/.test(e.message)) break
+      continue
+    }
+    const dong = NHAN_HO_SO.filter(([k]) => String(hs[k] || '').trim()).map(([k, nhan]) => `${nhan}: ${String(hs[k]).trim()}`)
+    if (!dong.length) continue
+    const rec = {
+      id: 'hs:' + sp.id,
+      loai: 'tai_lieu',
+      trang_thai: 'da_duyet',
+      tieu_de: `Hồ sơ sản phẩm: ${sp.ten}`,
+      noi_dung: `Hồ sơ sản phẩm: ${sp.ten} (${sp.nhom}).\n${dong.join('\n')}`,
+      tags: ['ho-so-san-pham'],
+      nguon: sp.url,
+      sp_id: sp.id,
+      hash: bam(KHUNG_HO_SO + bai),
+      nguoi_tao: 'Maika · hồ sơ SP',
+      tao_luc: new Date().toISOString(),
+      embedding: null,
+    }
+    await rest('rpc/admin_ghi', { p_pin: PIN, p_rows: [rec] })
+    hoSoMoi.push(rec)
+    console.log(`  ✓ ${sp.ten} (${dong.length}/6 mục)`)
+  }
+  console.log(`✓ Hồ sơ: viết ${hoSoMoi.length} · xoá ${hoSoXoa.length} của SP đã gỡ · còn ${Math.max(choViet.length - hoSoMoi.length, 0)} chờ lần sau`)
+}
+
+// 4) Vector hoá đoạn còn thiếu
 if (!GEMINI) {
   console.log('⚠ Thiếu VITE_GEMINI_API_KEY — bỏ qua vector hoá (Maika vẫn tìm theo từ khoá)')
   process.exit(0)
 }
 const thieu = new Set(canGhi.map((d) => d.id))
 daCo.forEach((r, id) => !r.co_vector && !r.da_xoa && idMoi.has(id) && thieu.add(id))
-const canHoc = doan.filter((d) => thieu.has(d.id))
+// Hồ sơ (gọn, đúng khung) học trước đoạn mô tả thô
+const hoSoCanHoc = [
+  ...hoSoMoi,
+  ...[...hoSoCu.values()].filter((r) => !r.co_vector && !r.da_xoa && spCon.has(r.sp_id) && !hoSoMoi.some((m) => m.id === r.id)),
+].map((r) => ({ id: r.id, tieuDe: r.tieu_de, noiDung: r.noi_dung }))
+const canHoc = [...hoSoCanHoc, ...doan.filter((d) => thieu.has(d.id))]
 console.log(`• Vector hoá ${canHoc.length} đoạn…`)
 let xong = 0
 let rotMang = 0
