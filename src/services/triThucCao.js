@@ -11,16 +11,40 @@ const URL_THE = import.meta.env.VITE_TRI_THUC_URL || 'https://raw.githubusercont
 const KEY_DA_NHAN = 'vln_the_cao_da_nhan' // id thẻ đã đưa vào hàng chờ (kể cả đã duyệt/từ chối)
 const CHU_KY_MS = 3 * 3600 * 1000
 
+// Mô tả nguồn PUBLIC Maika cào (khớp scripts/cao-tri-thuc.mjs) — hiển thị ở tab Pending Cards
+export const NGUON_CAO = [
+  { ten: 'Sika Việt Nam', mien: 'vnm.sika.com', phamVi: 'Sản phẩm xây dựng & bán lẻ, phương pháp thi công, Knowledge Hub (bỏ nhóm công nghiệp)' },
+  { ten: 'Jotun Việt Nam', mien: 'jotun.com/vn-vi', phamVi: 'Sơn trang trí nội/ngoại thất — trang chi tiết sản phẩm' },
+  { ten: 'Maxbond', mien: 'maxbond.vn', phamVi: 'Trang sản phẩm keo dán, chống thấm Maxbond' },
+]
+export const LICH_CAO = '5:30 và 12:30 mỗi ngày (GitHub Actions)'
+export const URL_NGUON_THE = URL_THE
+
 let _lanCuoi = 0
+const _trangThai = { lanTai: 0, capNhatNguon: '', tongThe: 0, loi: '' }
+export const trangThaiCao = () => ({ ..._trangThai })
 
 // Gọi khi máy Admin mở app; trả về số thẻ mới đưa vào hàng chờ
 export async function napTheCao({ batBuoc = false } = {}) {
   if (!batBuoc && Date.now() - _lanCuoi < CHU_KY_MS) return 0
   _lanCuoi = Date.now()
-  const res = await fetch(`${URL_THE}?t=${Math.floor(Date.now() / 600000)}`)
-  if (res.status === 404) return 0 // workflow chưa chạy lần nào
-  if (!res.ok) throw new Error('HTTP ' + res.status)
-  const { the = [] } = await res.json()
+  let res
+  try {
+    res = await fetch(`${URL_THE}?t=${Math.floor(Date.now() / 600000)}`)
+  } catch (e) {
+    _trangThai.loi = 'Mất mạng / không tải được nguồn thẻ'
+    throw e
+  }
+  if (res.status === 404) {
+    _trangThai.loi = 'Chưa có dữ liệu (workflow cào chưa chạy lần nào)'
+    return 0
+  }
+  if (!res.ok) {
+    _trangThai.loi = 'HTTP ' + res.status
+    throw new Error('HTTP ' + res.status)
+  }
+  const { the = [], capNhat = '' } = await res.json()
+  Object.assign(_trangThai, { lanTai: Date.now(), capNhatNguon: capNhat, tongThe: the.length, loi: '' })
   const daNhan = new Set((await idbGet(STORE_KV, KEY_DA_NHAN).catch(() => null)) || [])
   const moi = the.filter((t) => !daNhan.has(t.id))
   // Cũ nhất trước → thẻ mới nhất nằm đầu danh sách chờ duyệt

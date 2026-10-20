@@ -8,8 +8,8 @@
 // ============================================================
 import { SAN_PHAM } from '../data/mockData'
 import { laySanPhamWeb } from '../data/productStore'
-import { aiCoCauHinh, geminiChat } from './maikaChatbot'
-import { truyXuat } from './vectorStore'
+import { aiCoCauHinh, geminiChat, mayChuMaikaCoCauHinh } from './maikaChatbot'
+import { dangKyTheoDoi as dangKyTheoDoiTriThuc, phienBanTriThuc, truyXuat } from './vectorStore'
 import { duLieuKV, goiYSanPhamTuCau, tienVN } from './kiotViet'
 
 function coMang() {
@@ -18,7 +18,7 @@ function coMang() {
 
 export function maikaCheDo() {
   if (!coMang()) return 'offline'
-  if (aiCoCauHinh()) return 'ai'
+  if (aiCoCauHinh() || mayChuMaikaCoCauHinh()) return 'ai'
   return 'chuaCauHinh'
 }
 
@@ -90,6 +90,34 @@ function gomTaiLieu(thamKhao, sp) {
   return ds.slice(0, 8)
 }
 
+// ============================================================
+//  CACHE CÂU TRẢ LỜI — tri thức public (câu hỏi kỹ thuật lặp lại: "định mức Sika Latex?")
+//  trả ngay < 1s. Chỉ cache câu hỏi mở đầu (không lịch sử, không ảnh) và KHÔNG chứa giá/tồn
+//  KiotViet (số liệu thay đổi). Tri thức mới được duyệt → xoá cache để Maika trả lời theo bản mới.
+// ============================================================
+const _cacheTraLoi = new Map()
+const TUOI_CACHE_MS = 6 * 3600 * 1000
+const TOI_DA_CACHE = 150
+const khoaCache = (s) => s.toLowerCase().normalize('NFC').replace(/[?.!,\s]+/g, ' ').trim()
+let _phienBan = ''
+dangKyTheoDoiTriThuc(() => {
+  const pb = phienBanTriThuc()
+  if (pb !== _phienBan) {
+    _phienBan = pb
+    _cacheTraLoi.clear()
+  }
+})
+
+function layCache(khoa) {
+  const c = _cacheTraLoi.get(khoa)
+  if (!c || Date.now() - c.luc > TUOI_CACHE_MS) return null
+  return c.kq
+}
+function ghiCache(khoa, kq) {
+  if (_cacheTraLoi.size >= TOI_DA_CACHE) _cacheTraLoi.delete(_cacheTraLoi.keys().next().value)
+  _cacheTraLoi.set(khoa, { kq, luc: Date.now() })
+}
+
 const THONG_BAO_OFFLINE =
   'Maika chưa có dữ liệu offline về nội dung này. Vui lòng bật mạng để Maika tra cứu qua Gemini.'
 
@@ -123,11 +151,19 @@ export async function maikaChatAI(lichSu) {
 
   try {
     const truyVan = cauTruyVan(lichSu)
+    const kv = khoKiotViet(truyVan)
+    const laCauDau = !tinCuoi?.anh && lichSu.filter((m) => m.tu === 'user').length === 1
+    const khoa = laCauDau && !kv && cauHoiCuoi.trim() ? khoaCache(cauHoiCuoi) : ''
+    const daCo = khoa && layCache(khoa)
+    if (daCo) return { ...daCo, tuCache: true }
+
     const thamKhao = truyVan.trim() ? await truyXuat(truyVan, { k: 6 }) : []
-    const { text, nhaCungCap } = await geminiChat(lichSu, { khoNoiBo: khoNoiBo() + khoKiotViet(truyVan), triThuc: thamKhao })
+    const { text, nhaCungCap } = await geminiChat(lichSu, { khoNoiBo: khoNoiBo() + kv, triThuc: thamKhao })
     const sp = timSP(cauHoiCuoi)
     const taiLieu = XIN_TAI_LIEU.test(cauHoiCuoi) ? gomTaiLieu(thamKhao, sp) : undefined
-    return { text: text || '(Maika chưa có câu trả lời)', sp, nguon: nhaCungCap, taiLieu }
+    const kq = { text: text || '(Maika chưa có câu trả lời)', sp, nguon: nhaCungCap, taiLieu }
+    if (khoa && text) ghiCache(khoa, kq)
+    return kq
   } catch (e) {
     console.warn('[Maika AI] Lỗi gọi AI:', e.message)
     if (!coMang()) {

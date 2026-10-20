@@ -79,7 +79,8 @@ const hoaDon = (await layHet(`/invoices?fromPurchaseDate=${moc}&orderBy=purchase
     nv: (i.soldByName || '').replace(/^sales\d+\s*-\s*/i, ''),
     ct: (i.invoiceDetails || []).map((d) => [d.productCode, d.productName, d.quantity, d.price]),
     // Thanh toán: [[phương thức (Cash|Transfer|Card|...), số tiền]] → Báo cáo tách Tiền mặt / Chuyển khoản
-    tt: (i.payments || []).filter((p) => p.status !== 2).map((p) => [p.method || '', p.amount || 0]),
+    // (khoá 'ttoan' — 'tt' đã là trạng thái hoá đơn, ConsultScreen hiển thị)
+    ttoan: (i.payments || []).filter((p) => p.status !== 2).map((p) => [p.method || '', p.amount || 0]),
   }))
 
 const khach = (await layHet('/customers?orderBy=createdDate&orderDirection=Desc')).map((c) => ({

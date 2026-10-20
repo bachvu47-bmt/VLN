@@ -164,6 +164,33 @@ language sql stable security definer set search_path = public, extensions as $$
   limit p_k;
 $$;
 
+-- ---------- Giới hạn lượt hỏi Maika (hàm máy chủ "maika" gọi qua kết nối DB, KHÔNG mở cho anon) ----------
+create table if not exists public.luot_hoi (
+  ngay date not null,
+  khoa text not null, -- 'khach:<ip>' | 'noi-bo:<ip>' | 'khach:*' (tổng)
+  so   int  not null default 0,
+  primary key (ngay, khoa)
+);
+alter table public.luot_hoi enable row level security;
+revoke all on public.luot_hoi from anon, authenticated;
+
+-- Tăng đếm cho khoá riêng + khoá tổng trong ngày (giờ Việt Nam); vượt giới hạn → false (không tăng)
+create or replace function public.dem_luot(p_khoa text, p_gioi_han int, p_khoa_tong text, p_gioi_han_tong int)
+returns boolean language plpgsql security definer set search_path = public as $$
+declare d date := (now() at time zone 'Asia/Ho_Chi_Minh')::date; n int; tong int;
+begin
+  select so into n from public.luot_hoi where ngay = d and khoa = p_khoa;
+  select so into tong from public.luot_hoi where ngay = d and khoa = p_khoa_tong;
+  if coalesce(n, 0) >= p_gioi_han or coalesce(tong, 0) >= p_gioi_han_tong then
+    return false;
+  end if;
+  insert into public.luot_hoi (ngay, khoa, so) values (d, p_khoa, 1), (d, p_khoa_tong, 1)
+  on conflict (ngay, khoa) do update set so = public.luot_hoi.so + 1;
+  delete from public.luot_hoi where ngay < d - 30;
+  return true;
+end $$;
+revoke all on function public.dem_luot(text, int, text, int) from public, anon, authenticated;
+
 grant execute on function public.kiem_tra_pin(text), public.de_xuat_sua_sai(text, text, text, text, text),
   public.admin_ghi(text, jsonb), public.admin_gan_vector(text, jsonb), public.admin_xoa(text, text[]),
   public.tim_tri_thuc(extensions.vector, int, float) to anon, authenticated;

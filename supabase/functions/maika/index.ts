@@ -1,0 +1,235 @@
+// ============================================================
+//  HÀM MÁY CHỦ "maika" (Supabase Edge Function, Deno) — MỘT Maika cho cả app và web
+//  POST /functions/v1/maika
+//    { cheDo: 'khach' | 'noi-bo', lichSu: [{tu, text, anh?, coAnh?}], khoNoiBo?, triThuc? }
+//    → { text, nhaCungCap }  ·  lỗi: { loi, choGiay? }
+//  - Lời dặn / model / cách ghép lịch sử: ../_shared/maikaNao.js (app import đúng file này)
+//  - Tri thức: bảng tri_thuc (kho chung) — tìm theo vector (Gemini embedding 768 chiều),
+//    lỗi embedding thì tìm theo từ khoá. App gửi sẵn triThuc đã truy xuất thì dùng luôn.
+//  - 'khach' (web): bỏ qua khoNoiBo/triThuc do client gửi → chỉ tri thức đã duyệt trên máy chủ.
+//  - Giới hạn lượt/ngày theo IP + tổng toàn hệ thống (bảng luot_hoi) để không cạn quota AI free.
+//  Secrets: GEMINI_API_KEY, GROQ_API_KEY (đặt bằng scripts/setup-supabase.mjs). SUPABASE_DB_URL có sẵn.
+// ============================================================
+import postgres from 'npm:postgres@3.4.4'
+import { cauTruyVan, GEMINI_MODELS, GROQ_MODELS, NHIET_DO, rutGonNguCanh, sangMessagesGroq, SO_CHIEU_VECTOR, systemPrompt, toContents } from '../_shared/maikaNao.js'
+
+const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
+const GROQ_KEY = Deno.env.get('GROQ_API_KEY') || ''
+const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta'
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
+const EMBED_MODEL = 'gemini-embedding-001'
+
+const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { prepare: false, max: 2, idle_timeout: 20 })
+
+// Lượt/ngày: [mỗi IP, tổng cả hệ thống]
+const GIOI_HAN = { khach: [30, 600], 'noi-bo': [400, 6000] } as const
+
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+const traVe = (data: unknown, status = 200) =>
+  new Response(JSON.stringify(data), { status, headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8' } })
+
+class LoiAI extends Error {
+  constructor(public status: number, chiTiet: string, public choGiay = 0) {
+    super(`HTTP ${status}: ${String(chiTiet).slice(0, 200)}`)
+  }
+}
+const NEN_DOI = (e: any) => [404, 429, 500, 502, 503, 504].includes(e?.status) || e?.name === 'TimeoutError' || e instanceof TypeError
+
+// ---------- AI ----------
+async function goiGemini(duongDan: string, body: unknown, timeoutMs = 30000) {
+  const res = await fetch(`${GEMINI_BASE}/${duongDan}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs),
+  })
+  if (!res.ok) {
+    const t = await res.text().catch(() => '')
+    const m = t.match(/"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/)
+    throw new LoiAI(res.status, t, m ? Math.ceil(Number(m[1])) : 0)
+  }
+  return res.json()
+}
+
+// nhanh: khách trên web — suy nghĩ mức thấp, chỉ thử 2 model, mỗi lần ≤ 15s rồi nhường Groq
+// (đo 20/10/2026: gemini-3.8-flash mặc định 200s/câu, thinkingLevel 'low' ~16s)
+async function geminiChat(system: string, lichSu: any[], nhanh = false) {
+  let loiCuoi: any
+  for (const m of nhanh ? GEMINI_MODELS.slice(0, 2) : GEMINI_MODELS) {
+    try {
+      const data = await goiGemini(`models/${m}:generateContent`, {
+        systemInstruction: { parts: [{ text: system }] },
+        contents: toContents(lichSu),
+        generationConfig: { temperature: NHIET_DO, maxOutputTokens: 8192, thinkingConfig: { thinkingLevel: 'low' } },
+      }, nhanh ? 15000 : 30000)
+      const parts = data?.candidates?.[0]?.content?.parts || []
+      const text = parts.filter((p: any) => !p.thought).map((p: any) => p.text || '').join('').trim()
+      if (text) return text
+      loiCuoi = new LoiAI(502, 'Gemini không trả nội dung')
+    } catch (e) {
+      loiCuoi = e
+      if (!NEN_DOI(e)) throw e
+    }
+  }
+  throw loiCuoi
+}
+
+async function groqChat(system: string, lichSu: any[]) {
+  const messages = sangMessagesGroq(system, lichSu)
+  const coAnh = messages.some((m: any) => Array.isArray(m.content))
+  let loiCuoi: any
+  for (const { id, them, docAnh } of GROQ_MODELS as any[]) {
+    if (coAnh && !docAnh) continue
+    try {
+      const res = await fetch(GROQ_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROQ_KEY}` },
+        body: JSON.stringify({ model: id, messages, temperature: NHIET_DO, max_tokens: 2048, ...them }),
+        signal: AbortSignal.timeout(25000),
+      })
+      if (!res.ok) throw new LoiAI(res.status, await res.text().catch(() => ''), Number(res.headers.get('retry-after')) || 0)
+      const data = await res.json()
+      const text = (data?.choices?.[0]?.message?.content || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim()
+      if (text) return text
+      loiCuoi = new LoiAI(502, 'Groq không trả nội dung')
+    } catch (e) {
+      loiCuoi = e
+      if (!NEN_DOI(e)) throw e
+    }
+  }
+  throw loiCuoi || new LoiAI(429, 'Các model Groq đang hết lượt', 30)
+}
+
+// Nhân viên hỏi chữ: Groq trước (nhiều lượt free), Gemini dự phòng
+// Khách trên web / có ảnh: Gemini trước — bám tri thức, ít trộn số liệu giữa các sản phẩm hơn
+// (thử 20/10/2026: gpt-oss-120b vẫn tự thêm độ dày lớp/thời gian chờ), hết lượt thì Groq đỡ
+async function traLoi(nguCanh: any, lichSu: any[]) {
+  const coAnh = lichSu.some((m) => m.anh) || nguCanh.cheDo === 'khach'
+  const quaGemini = async () => ({ text: await geminiChat(systemPrompt(nguCanh), lichSu, nguCanh.cheDo === 'khach'), nhaCungCap: 'gemini' })
+  const quaGroq = async () => ({ text: await groqChat(systemPrompt(rutGonNguCanh(nguCanh)), lichSu), nhaCungCap: 'groq' })
+  const thuTu = (coAnh ? [GEMINI_KEY && quaGemini, GROQ_KEY && quaGroq] : [GROQ_KEY && quaGroq, GEMINI_KEY && quaGemini]).filter(Boolean) as (() => Promise<any>)[]
+  let loiCuoi: any
+  for (const thu of thuTu) {
+    try {
+      return await thu()
+    } catch (e) {
+      loiCuoi = e
+      console.warn('[maika] nhà cung cấp lỗi:', (e as Error).message)
+    }
+  }
+  throw loiCuoi || new LoiAI(500, 'Chưa cấu hình key AI trên máy chủ')
+}
+
+// ---------- Tri thức (kho chung) ----------
+async function vectorCauHoi(text: string): Promise<number[] | null> {
+  if (!GEMINI_KEY || !text.trim()) return null
+  try {
+    const data = await goiGemini(`models/${EMBED_MODEL}:embedContent`, {
+      model: `models/${EMBED_MODEL}`,
+      content: { parts: [{ text: text.slice(0, 2000) }] },
+      taskType: 'RETRIEVAL_QUERY',
+      outputDimensionality: SO_CHIEU_VECTOR,
+    }, 5000)
+    const v: number[] = data?.embedding?.values || []
+    const n = Math.sqrt(v.reduce((s, x) => s + x * x, 0)) || 1
+    return v.length === SO_CHIEU_VECTOR ? v.map((x) => x / n) : null
+  } catch {
+    return null
+  }
+}
+
+const doiHang = (r: any) => ({ loai: r.loai, tieuDe: r.tieu_de, noiDung: r.noi_dung })
+
+// Từ khoá: chấm điểm theo số từ khớp (tiêu đề nặng gấp đôi) — tìm được cả đoạn CHƯA có vector
+// (embedding free có hạn mức/ngày, kho mới nạp phải vài ngày mới đủ vector)
+const TU_BO_QUA = new Set(['không', 'nào', 'bao', 'nhiêu', 'được', 'những', 'phù', 'hợp', 'shop', 'mình', 'cho', 'của', 'với', 'này', 'như', 'thế', 'loại', 'dùng', 'có', 'bị', 'gì', 'là', 'và', 'thì', 'sao'])
+async function timTuKhoa(text: string, k: number) {
+  const tu = [...new Set(text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 3 && !TU_BO_QUA.has(w)))].slice(0, 8)
+  if (!tu.length) return []
+  const mau = tu.map((w) => `%${w}%`)
+  return await sql`
+    select loai, tieu_de, noi_dung,
+      (select count(*) from unnest(${mau}::text[]) m where t.tieu_de ilike m) * 2 +
+      (select count(*) from unnest(${mau}::text[]) m where t.noi_dung ilike m) as diem
+    from public.tri_thuc t
+    where trang_thai = 'da_duyet' and not da_xoa and (tieu_de ilike any(${mau}) or noi_dung ilike any(${mau}))
+    order by (loai = 'sua_sai') desc, diem desc, cap_nhat_luc desc limit ${k}`
+}
+
+async function timTriThuc(text: string, k = 6) {
+  const [vec, tuKhoa] = await Promise.all([vectorCauHoi(text), timTuKhoa(text, k)])
+  const theoNghia = vec ? await sql`select * from public.tim_tri_thuc(${'[' + vec.join(',') + ']'}::extensions.vector, ${k}, 0.55)` : []
+  // Xen kẽ: nghĩa, từ khoá, nghĩa... — bỏ trùng; đính chính của Admin luôn lên đầu
+  const gop: any[] = []
+  const daCo = new Set<string>()
+  for (let i = 0; i < k; i++) {
+    for (const r of [theoNghia[i], tuKhoa[i]]) {
+      if (r && !daCo.has(r.tieu_de + r.noi_dung.slice(0, 50))) {
+        daCo.add(r.tieu_de + r.noi_dung.slice(0, 50))
+        gop.push(r)
+      }
+    }
+  }
+  return gop.sort((a, b) => Number(b.loai === 'sua_sai') - Number(a.loai === 'sua_sai')).slice(0, k).map(doiHang)
+}
+
+// ---------- Giới hạn lượt ----------
+async function conLuot(cheDo: 'khach' | 'noi-bo', ip: string) {
+  const [moiIp, tong] = GIOI_HAN[cheDo]
+  const [{ ok }] = await sql`select public.dem_luot(${cheDo + ':' + ip}, ${moiIp}, ${cheDo + ':*'}, ${tong}) as ok`
+  return ok as boolean
+}
+
+// ---------- Kiểm tra đầu vào ----------
+function lamSachLichSu(raw: unknown) {
+  if (!Array.isArray(raw)) return null
+  const ds = raw.slice(-16).map((m: any, i: number, a: any[]) => {
+    const tu = m?.tu === 'maika' ? 'maika' : 'user'
+    const text = String(m?.text || '').slice(0, 4000)
+    const laCuoi = i === a.length - 1
+    const anh =
+      laCuoi && m?.anh && /^image\/(jpeg|png|webp)$/.test(m.anh.mime) && typeof m.anh.base64 === 'string' && m.anh.base64.length < 4_500_000
+        ? { mime: m.anh.mime, base64: m.anh.base64 }
+        : undefined
+    return { tu, text, coAnh: !!m?.coAnh, ...(anh ? { anh } : {}) }
+  })
+  return ds.some((m) => m.tu === 'user' && (m.text || m.anh)) ? ds : null
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS })
+  if (req.method !== 'POST') return traVe({ loi: 'Chỉ nhận POST' }, 405)
+
+  let body: any
+  try {
+    body = await req.json()
+  } catch {
+    return traVe({ loi: 'Dữ liệu gửi lên không hợp lệ' }, 400)
+  }
+  const cheDo: 'khach' | 'noi-bo' = body?.cheDo === 'noi-bo' ? 'noi-bo' : 'khach'
+  const lichSu = lamSachLichSu(body?.lichSu)
+  if (!lichSu) return traVe({ loi: 'Chưa có câu hỏi' }, 400)
+
+  const ip = (req.headers.get('x-forwarded-for') || '').split(',')[0].trim() || 'khong-ro'
+  try {
+    if (!(await conLuot(cheDo, ip))) {
+      return traVe({ loi: cheDo === 'khach' ? 'Hôm nay Maika đã trả lời anh/chị nhiều câu rồi ạ. Anh/chị gọi 0947 844 446 hoặc nhắn Zalo để kỹ thuật viên hỗ trợ tiếp nhé!' : 'Đã hết lượt hỏi Maika hôm nay', choGiay: 3600 }, 429)
+    }
+
+    const truyVan = cauTruyVan(lichSu)
+    const triThucApp = cheDo === 'noi-bo' && Array.isArray(body?.triThuc) ? body.triThuc.slice(0, 10).map((t: any) => ({ loai: String(t?.loai || ''), tieuDe: String(t?.tieuDe || '').slice(0, 300), noiDung: String(t?.noiDung || '').slice(0, 3000) })) : null
+    const triThuc = triThucApp ?? (await timTriThuc(truyVan).catch((e) => (console.warn('[maika] tìm tri thức lỗi:', e.message), [])))
+    const khoNoiBo = cheDo === 'noi-bo' ? String(body?.khoNoiBo || '').slice(0, 20000) : ''
+
+    const kq = await traLoi({ cheDo, khoNoiBo, triThuc }, lichSu)
+    return traVe(kq)
+  } catch (e: any) {
+    console.error('[maika] lỗi:', e?.message)
+    if (e?.status === 429) return traVe({ loi: 'Maika đang hết lượt AI miễn phí, anh/chị thử lại sau ít phút ạ.', choGiay: e.choGiay || 60 }, 429)
+    return traVe({ loi: 'Maika đang bận, anh/chị thử lại sau ít phút ạ.' }, 502)
+  }
+})

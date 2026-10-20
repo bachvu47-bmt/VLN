@@ -9,27 +9,26 @@
 //  Key free: https://aistudio.google.com/apikey → VITE_GEMINI_API_KEY
 // ============================================================
 import { blobSangBase64 } from '../data/mediaStore'
+import { layText, laYouTube, trichTrang } from './taiWeb'
+// Bộ não chung với Maika trên web (lời dặn, model, cách ghép lịch sử) — sửa ở file này cho cả 2 nơi
+import { GEMINI_MODELS, GROQ_MODELS, NHIET_DO, rutGonNguCanh, sangMessagesGroq, SO_CHIEU_VECTOR, systemPrompt, toContents } from '../../supabase/functions/_shared/maikaNao.js'
 
-const API_KEY =import.meta.env.VITE_GEMINI_API_KEY || ''
+export { SO_CHIEU_VECTOR, systemPrompt }
+
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || ''
 const MODEL = import.meta.env.VITE_GEMINI_MODEL || 'gemini-flash-latest'
+// Multimodal (ảnh hiện trường, âm thanh dự phòng, tài liệu) — Gemini Flash: đọc ảnh tốt & nhanh
+const MODEL_MULTIMODAL = import.meta.env.VITE_GEMINI_MULTIMODAL_MODEL || 'gemini-flash-latest'
 const EMBED_MODEL = import.meta.env.VITE_GEMINI_EMBED_MODEL || 'gemini-embedding-001'
 const BASE = 'https://generativelanguage.googleapis.com/v1beta'
 
-// Model dự phòng — Google hay gỡ model cũ (404) hoặc quá tải tạm thời (503),
-// mỗi model có quota riêng (429). Xếp từ mạnh → nhẹ; bản "lite" nhanh, ít quá tải.
-const MODEL_DU_PHONG = ['gemini-flash-latest', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3-flash-preview', 'gemini-flash-lite-latest']
-export const SO_CHIEU_VECTOR = 768
+// Model dự phòng Gemini & danh sách model Groq: xem _shared/maikaNao.js (dùng chung với web)
+const MODEL_DU_PHONG = GEMINI_MODELS
 
-// Groq (OpenAI-compatible) — dự phòng khi Gemini hết lượt free. Mỗi model 1.000 câu/ngày,
+// Groq (OpenAI-compatible) — brain chính cho chat chữ. Mỗi model ~1.000 câu/ngày,
 // nhưng chỉ 8.000 token/phút → gửi prompt rút gọn.
 const GROQ_KEY = import.meta.env.VITE_GROQ_API_KEY || ''
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
-// docAnh: model nhận được ảnh (đã thử: chỉ qwen3.8-27b; gpt-oss chỉ nhận chữ)
-const GROQ_MODELS = [
-  { id: 'openai/gpt-oss-120b', them: { reasoning_effort: 'low' } },
-  { id: 'qwen/qwen3.8-27b', them: { reasoning_format: 'hidden' }, docAnh: true },
-  { id: 'openai/gpt-oss-20b', them: { reasoning_effort: 'low' } },
-]
 const GROQ_STT_URL = 'https://api.groq.com/openai/v1/audio/transcriptions'
 
 export function geminiCoCauHinh() {
@@ -54,17 +53,17 @@ function laNative() {
   return typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.()
 }
 
-async function goi(duongDan, body) {
+async function goi(duongDan, body, timeoutMs = 30000) {
   const url = `${BASE}/${duongDan}`
   const headers = { 'Content-Type': 'application/json', 'x-goog-api-key': API_KEY }
   if (laNative()) {
     const { CapacitorHttp } = await import('@capacitor/core')
-    const res = await CapacitorHttp.post({ url, headers, data: body, connectTimeout: 15000, readTimeout: 30000 })
+    const res = await CapacitorHttp.post({ url, headers, data: body, connectTimeout: Math.min(15000, timeoutMs), readTimeout: timeoutMs })
     if (res.status >= 400) throw new GeminiLoi(res.status, JSON.stringify(res.data))
     return typeof res.data === 'string' ? JSON.parse(res.data) : res.data
   }
-  // Google đôi khi treo request → 30s chưa xong thì bỏ, chuyển model khác (WebView Android cũ không có timeout())
-  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout?.(30000) })
+  // Google đôi khi treo request → quá hạn thì bỏ, chuyển model khác (WebView Android cũ không có timeout())
+  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout?.(timeoutMs) })
   if (!res.ok) throw new GeminiLoi(res.status, await res.text().catch(() => ''))
   return res.json()
 }
@@ -78,15 +77,15 @@ const _hetQuotaDen = new Map()
 const ngu = (ms) => new Promise((r) => setTimeout(r, ms))
 
 // generateContent: thử model cấu hình trước, lỗi tạm thời thì lần lượt qua các model dự phòng
-async function sinhNoiDung(body) {
-  const thuTu = [...new Set([MODEL, ...MODEL_DU_PHONG])]
+async function sinhNoiDung(body, modelDau = MODEL, timeoutMs = 30000) {
+  const thuTu = [...new Set([modelDau, ...MODEL_DU_PHONG])]
   let loiCuoi
   for (let vong = 0; vong < 2; vong++) {
     if (vong > 0) await ngu(2000) // mọi model đều quá tải → đợi rồi thử thêm 1 vòng
     const conDung = thuTu.filter((x) => !_modelDaGo.has(x) && !((_hetQuotaDen.get(x) || 0) > Date.now()))
     for (const m of conDung) {
       try {
-        const data = await goi(`models/${m}:generateContent`, body)
+        const data = await goi(`models/${m}:generateContent`, body, timeoutMs)
         const cand = data?.candidates?.[0]
         const text = (cand?.content?.parts || []).filter((p) => !p.thought).map((p) => p.text || '').join('')
         if (!text) throw new Error('Gemini không trả nội dung (finishReason: ' + (cand?.finishReason || data?.promptFeedback?.blockReason || '?') + ')')
@@ -113,29 +112,10 @@ async function goiGroq(body) {
     if (res.status >= 400) throw new GeminiLoi(res.status, JSON.stringify(res.data), 'Groq', Number(res.headers?.['retry-after']) || 0)
     return typeof res.data === 'string' ? JSON.parse(res.data) : res.data
   }
-  const res = await fetch(GROQ_URL, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout?.(60000) })
+  // Groq thường trả < 3s; treo quá 25s thì chuyển model/nhà cung cấp khác cho kịp mục tiêu phản hồi nhanh
+  const res = await fetch(GROQ_URL, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout?.(25000) })
   if (!res.ok) throw new GeminiLoi(res.status, await res.text().catch(() => ''), 'Groq', Number(res.headers.get('retry-after')) || 0)
   return res.json()
-}
-
-// contents Gemini → messages OpenAI (ảnh inline_data → image_url data URI)
-function sangMessagesGroq(system, lichSu) {
-  return [
-    { role: 'system', content: system },
-    ...toContents(lichSu).map((c) => {
-      const role = c.role === 'model' ? 'assistant' : 'user'
-      const anh = c.parts.find((p) => p.inline_data)
-      const text = c.parts.filter((p) => p.text).map((p) => p.text).join('\n')
-      if (!anh) return { role, content: text }
-      return {
-        role,
-        content: [
-          { type: 'text', text },
-          { type: 'image_url', image_url: { url: `data:${anh.inline_data.mime_type};base64,${anh.inline_data.data}` } },
-        ],
-      }
-    }),
-  ]
 }
 
 async function groqChat(system, lichSu) {
@@ -147,7 +127,7 @@ async function groqChat(system, lichSu) {
     const khoa = 'groq:' + id
     if (_modelDaGo.has(khoa) || (_hetQuotaDen.get(khoa) || 0) > Date.now()) continue
     try {
-      const data = await goiGroq({ model: id, messages, temperature: 0.4, max_tokens: 2048, ...them })
+      const data = await goiGroq({ model: id, messages, temperature: NHIET_DO, max_tokens: 2048, ...them })
       const text = (data?.choices?.[0]?.message?.content || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim()
       if (!text) throw new Error('Groq không trả nội dung')
       return text
@@ -162,81 +142,23 @@ async function groqChat(system, lichSu) {
   throw loiCuoi || new GeminiLoi(429, 'Các model Groq đang hết lượt', 'Groq', 30)
 }
 
-// Groq chỉ 8.000 token/phút → bớt tri thức truy xuất (4 mẩu, mỗi mẩu ≤ 700 ký tự)
-function rutGonNguCanh({ khoNoiBo = '', triThuc = [] } = {}) {
-  // Giữ trọn mục giá/tồn KiotViet (ngắn, quan trọng), chỉ cắt phần kho minh hoạ phía trước
-  const [kho, kv = ''] = khoNoiBo.split('\n\nGIÁ BÁN & TỒN KHO KIOTVIET')
-  return {
-    khoNoiBo: kho.slice(0, 3000) + (kv ? '\n\nGIÁ BÁN & TỒN KHO KIOTVIET' + kv : ''),
-    triThuc: triThuc.slice(0, 4).map((t) => ({ ...t, noiDung: t.noiDung.slice(0, 700) })),
-  }
-}
-
-// ============================================================
-//  SYSTEM PROMPT — Chuyên gia Kỹ thuật Chống thấm & VLXD
-// ============================================================
-export function systemPrompt({ khoNoiBo = '', triThuc = [] } = {}) {
-  const dinhChinh = triThuc.filter((t) => t.loai === 'sua_sai')
-  const thamKhao = triThuc.filter((t) => t.loai !== 'sua_sai')
-
-  return `Bạn là Maika — CHUYÊN GIA KỸ THUẬT CHỐNG THẤM & VẬT LIỆU XÂY DỰNG của Vật Liệu Nhà. Bạn là trợ lý nội bộ cho đội ngũ kinh doanh.
-
-NGUYÊN TẮC TRẢ LỜI:
-- Tiếng Việt, thông mượt, chính xác, đi thẳng vấn đề; dùng gạch đầu dòng + số liệu (định mức, tỷ lệ pha, độ ẩm, nhiệt độ, thời gian khô) khi phù hợp.
-- Thứ tự ưu tiên nguồn: (1) ĐÍNH CHÍNH TỪ ADMIN → (2) TRI THỨC NỘI BỘ / WEBSITE vatlieunha.vn → (3) kiến thức chuyên môn của bạn.
-- KHÔNG CÓ DỮ LIỆU THÌ NÓI DỨT KHOÁT: câu hỏi về một SẢN PHẨM / THƯƠNG HIỆU / MÃ HÀNG / chủ đề cụ thể mà KHÔNG xuất hiện trong đính chính, tri thức truy xuất hay kho sản phẩm nội bộ bên dưới (vd "Luân lotus") → chỉ trả lời: "Maika chưa có dữ liệu về vấn đề này." (có thể thêm 1 câu xin tên đầy đủ, ảnh bao bì hoặc tài liệu). TUYỆT ĐỐI không đoán, không giới thiệu sản phẩm khác thay thế, không kể lan man.
-- Câu hỏi kỹ thuật chung (nguyên nhân thấm/nứt, quy trình thi công, xử lý bề mặt, phân tích ảnh hiện trường) → được dùng kiến thức chuyên môn để trả lời.
-- Tri thức truy xuất chỉ là "có thể liên quan" — mẩu nào không đúng chủ đề câu hỏi thì BỎ QUA, không nhắc tới.
-- GIÁ & TỒN KHO: chỉ báo giá/tồn theo mục "GIÁ BÁN & TỒN KHO KIOTVIET" (ghi rõ giờ cập nhật). Không có mục đó → nói chưa có số liệu kho, TUYỆT ĐỐI không tự bịa giá hay số lượng.
-- KHÔNG chèn đường link, URL, danh sách nguồn hay tên tệp tài liệu vào câu trả lời. Chỉ khi người dùng yêu cầu "cung cấp tài liệu chi tiết" / xin link / xin TDS thì mới nói tài liệu có ở mục "Tài liệu" bên dưới câu trả lời.
-- Thiếu dữ kiện quan trọng (bề mặt, độ ẩm, trong/ngoài trời, hạng mục, diện tích, ngân sách) → HỎI LẠI ngắn gọn trước khi chốt phương án.
-- Khi tư vấn giải pháp: nêu (1) chẩn đoán/giải pháp, (2) sản phẩm phù hợp + định mức, (3) tỷ lệ pha & trình tự thi công, (4) ⚠️ cảnh báo bắt buộc (vd: CẤM lăn PU khi sàn ẩm > 8%).
-- Khi người dùng GỬI ẢNH: mô tả ngắn điều thấy được (loại hư hỏng, vị trí, mức độ — vd nứt chân chim / nứt kết cấu, thấm, bong tróc, nấm mốc), chẩn đoán nguyên nhân khả dĩ, rồi đề xuất giải pháp thi công + vật liệu. Ảnh không đủ rõ → nói rõ cần chụp thêm góc nào.
-- Khi người dùng chỉnh lại ("tôi hỏi X chứ không phải Y") → hiểu ngữ cảnh và sửa ngay.
-- Khi xưng danh với khách, chỉ dùng thương hiệu "Vật Liệu Nhà".
-${
-  dinhChinh.length
-    ? `
-ĐÍNH CHÍNH TỪ ADMIN (ưu tiên TUYỆT ĐỐI — đây là các lỗi bạn từng trả lời sai, phải dùng nội dung đúng dưới đây):
-${dinhChinh.map((t, i) => `[Đ${i + 1}] ${t.noiDung}`).join('\n\n')}
-`
-    : ''
-}${
-  thamKhao.length
-    ? `
-TRI THỨC TRUY XUẤT TỪ BỘ NHỚ (liên quan nhất tới câu hỏi):
-${thamKhao.map((t, i) => `[T${i + 1}] ${t.tieuDe}\n${t.noiDung}`).join('\n\n')}
-`
-    : ''
-}
-KHO SẢN PHẨM NỘI BỘ:
-${khoNoiBo}`
-}
-
-// Lịch sử [{tu:'user'|'maika', text, anh?: {mime, base64}, coAnh?}] → contents của Gemini.
-// Chỉ tin nhắn đang hỏi mới mang dữ liệu ảnh (anh); ảnh cũ chỉ ghi chú "(đã gửi ảnh)" cho đỡ tốn quota.
-function toContents(lichSu) {
-  const contents = (lichSu || [])
-    .filter((m) => m.text || m.anh)
-    .map((m) => {
-      const text = (m.coAnh && !m.anh ? '(Người dùng đã gửi 1 ảnh ở tin nhắn này) ' : '') + (m.text || 'Phân tích ảnh này giúp tôi.')
-      const parts = m.anh ? [{ inline_data: { mime_type: m.anh.mime, data: m.anh.base64 } }, { text }] : [{ text }]
-      return { role: m.tu === 'user' ? 'user' : 'model', parts }
-    })
-  while (contents.length && contents[0].role !== 'user') contents.shift()
-  return contents
-}
+// System prompt, toContents, sangMessagesGroq, rutGonNguCanh: xem _shared/maikaNao.js (chung với web)
 
 // ============================================================
 //  GIỌNG NÓI → CHỮ: Groq Whisper (free, nhanh) → dự phòng Gemini (hiểu âm thanh)
 // ============================================================
+// File thoại tải từ Zalo/điện thoại hay có type rỗng → suy ra từ đuôi tệp
+const MIME_AM_THANH = { m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/aac', mp3: 'audio/mpeg', ogg: 'audio/ogg', opus: 'audio/ogg', oga: 'audio/ogg', wav: 'audio/wav', webm: 'audio/webm', flac: 'audio/flac', amr: 'audio/amr' }
+
 export async function chuyenGiongNoi(blob) {
   let loiCuoi
+  const duoiTen = (blob.name || '').split('.').pop().toLowerCase()
+  const mime = (blob.type || MIME_AM_THANH[duoiTen] || 'audio/webm').split(';')[0]
   if (GROQ_KEY) {
     try {
       const fd = new FormData()
-      const duoi = (blob.type.split('/')[1] || 'webm').split(';')[0]
-      fd.append('file', blob, `ghi-am.${duoi === 'mp4' ? 'm4a' : duoi}`)
+      const duoi = MIME_AM_THANH[duoiTen] ? duoiTen : mime.split('/')[1]
+      fd.append('file', blob, `ghi-am.${duoi === 'mp4' ? 'm4a' : duoi === 'mpeg' ? 'mp3' : duoi}`)
       fd.append('model', 'whisper-large-v3-turbo')
       fd.append('language', 'vi')
       fd.append('response_format', 'json')
@@ -256,13 +178,13 @@ export async function chuyenGiongNoi(blob) {
         {
           role: 'user',
           parts: [
-            { inline_data: { mime_type: (blob.type || 'audio/webm').split(';')[0], data: await blobSangBase64(blob) } },
+            { inline_data: { mime_type: mime, data: await blobSangBase64(blob) } },
             { text: 'Chép lại NGUYÊN VĂN lời nói tiếng Việt trong đoạn ghi âm. Chỉ trả về lời thoại, không thêm gì khác.' },
           ],
         },
       ],
       generationConfig: { temperature: 0, maxOutputTokens: 2048 },
-    })
+    }, MODEL_MULTIMODAL)
   }
   throw loiCuoi || new Error('Chưa cấu hình dịch vụ chuyển giọng nói (VITE_GROQ_API_KEY / VITE_GEMINI_API_KEY)')
 }
@@ -272,15 +194,55 @@ export async function chuyenGiongNoi(blob) {
 //  - Câu hỏi có ảnh: Gemini chính (đọc ảnh tốt nhất) → Groq qwen dự phòng
 //  → dành ~100 lượt Gemini free/ngày cho phân tích ảnh hiện trường.
 // Trả về { text, nhaCungCap: 'gemini' | 'groq' }
+//
+// MÁY CHỦ CHUNG (Supabase Edge Function "maika") — cùng bộ não với Maika trên vatlieunha.vn:
+// có cấu hình VITE_SUPABASE_URL thì hỏi qua máy chủ trước (key AI nằm trên máy chủ);
+// máy chủ lỗi / mất kết nối → gọi thẳng Groq/Gemini bằng key trong app như cũ.
+const URL_MAIKA = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '') + '/functions/v1/maika'
+const KEY_PUBLIC = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+
+export function mayChuMaikaCoCauHinh() {
+  return !!(import.meta.env.VITE_SUPABASE_URL && KEY_PUBLIC)
+}
+
+async function hoiMayChu(lichSu, nguCanh) {
+  // Chỉ tin nhắn cuối giữ ảnh; 12 tin gần nhất là đủ ngữ cảnh
+  const gon = (lichSu || []).slice(-12).map((m, i, a) => ({ tu: m.tu, text: m.text || '', coAnh: !!(m.coAnh || m.anh), ...(i === a.length - 1 && m.anh ? { anh: m.anh } : {}) }))
+  const body = { cheDo: 'noi-bo', lichSu: gon, khoNoiBo: nguCanh?.khoNoiBo || '', triThuc: (nguCanh?.triThuc || []).map(({ loai, tieuDe, noiDung }) => ({ loai, tieuDe, noiDung })) }
+  const headers = { 'Content-Type': 'application/json', apikey: KEY_PUBLIC, Authorization: `Bearer ${KEY_PUBLIC}` }
+  let status, data
+  if (laNative()) {
+    const { CapacitorHttp } = await import('@capacitor/core')
+    const res = await CapacitorHttp.post({ url: URL_MAIKA, headers, data: body, connectTimeout: 10000, readTimeout: 45000 })
+    status = res.status
+    data = typeof res.data === 'string' ? JSON.parse(res.data || '{}') : res.data
+  } else {
+    const res = await fetch(URL_MAIKA, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout?.(45000) })
+    status = res.status
+    data = await res.json().catch(() => ({}))
+  }
+  if (status >= 400 || !data?.text) throw new GeminiLoi(status || 500, data?.loi || 'Máy chủ Maika không trả nội dung', 'Máy chủ Maika', data?.choGiay)
+  return { text: data.text, nhaCungCap: data.nhaCungCap || 'may-chu' }
+}
+
 export async function geminiChat(lichSu, nguCanh) {
+  if (mayChuMaikaCoCauHinh()) {
+    try {
+      return await hoiMayChu(lichSu, nguCanh)
+    } catch (e) {
+      // Hết lượt trong ngày ở máy chủ thì key trong app cũng là cùng key → báo luôn, khỏi gọi lại
+      if (e.status === 429 || !aiCoCauHinh()) throw e
+      console.warn('[Maika] Máy chủ chung lỗi → gọi AI trực tiếp:', e.message)
+    }
+  }
   const coAnh = (lichSu || []).some((m) => m.anh)
   const quaGemini = async () => ({
     text: await sinhNoiDung({
       systemInstruction: { parts: [{ text: systemPrompt(nguCanh) }] },
       contents: toContents(lichSu),
       // Model Flash mới "suy nghĩ" trước khi trả lời → chừa đủ token
-      generationConfig: { temperature: 0.4, maxOutputTokens: 8192 },
-    }),
+      generationConfig: { temperature: NHIET_DO, maxOutputTokens: 8192 },
+    }, coAnh ? MODEL_MULTIMODAL : MODEL),
     nhaCungCap: 'gemini',
   })
   const quaGroq = async () => ({ text: await groqChat(systemPrompt(rutGonNguCanh(nguCanh)), lichSu), nhaCungCap: 'groq' })
@@ -302,7 +264,7 @@ export async function geminiChat(lichSu, nguCanh) {
 
 // Gọi AI 1 lượt ngắn (không RAG) — dùng cho trợ lý chủ động: tách việc từ câu nói, soạn tin follow-up.
 // json: true → yêu cầu trả JSON. Groq trước (rẻ lượt), Gemini dự phòng.
-export async function aiNhanh(system, cauHoi, { json = false } = {}) {
+export async function aiNhanh(system, cauHoi, { json = false, maxTokens = 1024 } = {}) {
   const lich = [{ tu: 'user', text: cauHoi }]
   const thuTu = [
     GROQ_KEY &&
@@ -312,7 +274,7 @@ export async function aiNhanh(system, cauHoi, { json = false } = {}) {
           const khoa = 'groq:' + id
           if ((_hetQuotaDen.get(khoa) || 0) > Date.now()) continue
           try {
-            const data = await goiGroq({ model: id, messages, temperature: 0.2, max_tokens: 1024, ...them, ...(json ? { response_format: { type: 'json_object' } } : {}) })
+            const data = await goiGroq({ model: id, messages, temperature: 0.2, max_tokens: maxTokens, ...them, ...(json ? { response_format: { type: 'json_object' } } : {}) })
             const text = (data?.choices?.[0]?.message?.content || '').trim()
             if (text) return text
           } catch (e) {
@@ -354,7 +316,8 @@ function chuanHoa(arr) {
   return v
 }
 
-export async function nhungVector(texts, taskType = 'RETRIEVAL_DOCUMENT') {
+// timeoutMs: truy vấn khi chat nên ngắn (vd 4s) — chậm thì bỏ vector, dùng từ khoá cho kịp trả lời
+export async function nhungVector(texts, taskType = 'RETRIEVAL_DOCUMENT', { timeoutMs = 30000 } = {}) {
   const kq = []
   for (let i = 0; i < texts.length; i += 100) {
     const lo = texts.slice(i, i + 100)
@@ -365,7 +328,7 @@ export async function nhungVector(texts, taskType = 'RETRIEVAL_DOCUMENT') {
         taskType,
         outputDimensionality: SO_CHIEU_VECTOR,
       })),
-    })
+    }, timeoutMs)
     ;(data.embeddings || []).forEach((e) => kq.push(chuanHoa(e.values)))
   }
   return kq
@@ -388,20 +351,157 @@ const SCHEMA_PHAN_TICH = {
   required: ['tieuDe', 'tomTat', 'cacY', 'tags', 'sanPhamLienQuan', 'doTinCay'],
 }
 
-export const GIOI_HAN_FILE_MB = 14
+export const GIOI_HAN_FILE_MB = 14 // gửi kèm trực tiếp (inline) — nhanh
+export const GIOI_HAN_TAI_LEN_MB = 200 // lớn hơn 14MB → tải lên Gemini Files API (video dài, PDF dày)
 
-export async function phanTichTaiLieu({ text = '', file = null }) {
+const HE_THONG_BIEN_TAP = 'Bạn là kỹ sư vật liệu xây dựng của Vật Liệu Nhà, chuyên biên tập tri thức kỹ thuật chính xác. Trả lời bằng tiếng Việt, đúng schema JSON.'
+
+// Với link: ngoài ý kỹ thuật, Maika "suy ngẫm" — rút ý áp dụng cho tư vấn/bán hàng (có cơ sở từ nội dung)
+const SUY_NGAM = ' Sau các ý kỹ thuật, thêm 1–3 ý bắt đầu bằng "Áp dụng cho Vật Liệu Nhà:" (gợi ý tư vấn, bán kèm, cảnh báo cho khách) — CHỈ khi nội dung có cơ sở, không suy diễn quá đà.'
+
+function yeuCauTrichXuat(text, file, { link = false } = {}) {
+  const loai = file?.youtube
+    ? `video YouTube ${file.ten} (xem cả hình ảnh lẫn lời nói: thao tác thi công, thứ tự bước, dụng cụ, vật liệu, lỗi thường gặp)`
+    : file?.mimeType?.startsWith('video/')
+    ? `video "${file.ten}" (xem cả hình ảnh lẫn lời nói: thao tác thi công, thứ tự bước, dụng cụ, vật liệu, lỗi thường gặp)`
+    : file?.mimeType?.startsWith('image/')
+      ? `ảnh "${file.ten}" (đọc chữ trên bao bì/nhãn/bảng thông số; mô tả hiện trạng, hư hỏng nếu là ảnh công trình)`
+      : file?.mimeType?.startsWith('audio/')
+        ? `ghi âm "${file.ten}" (nghe và chép lại ý kỹ thuật)`
+        : file
+          ? `tệp "${file.ten}"`
+          : ''
+  return `Phân tích nội dung ${loai ? loai + ' và ' : ''}ghi chú dưới đây, trích xuất KIẾN THỨC KỸ THUẬT (chống thấm, vật liệu xây dựng, nội thất, kinh nghiệm bán hàng) để nạp vào bộ nhớ của trợ lý Maika. Giữ nguyên số liệu, đơn vị, điều kiện thi công, cảnh báo. Bỏ phần quảng cáo/giá bán. Ghi chú có thể là lời nói chép lại (văn nói, thiếu dấu câu) — hãy hiểu ý và viết lại gọn gàng, KHÔNG bịa thêm số liệu.${link || file?.youtube ? SUY_NGAM : ''}\n\n${link ? 'Nội dung trang web' : 'Ghi chú của Admin'}:\n${text || '(không có)'}`
+}
+
+const MO_TA_JSON = 'Trả về DUY NHẤT JSON: {"tieuDe": "tiêu đề ngắn", "tomTat": "1-2 câu", "cacY": ["ý kỹ thuật rời, có số liệu cụ thể"], "tags": ["từ khoá"], "sanPhamLienQuan": ["tên sản phẩm/thương hiệu"], "doTinCay": 0-100}'
+const docJSON = (raw) => JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1))
+
+// Đảm bảo đủ trường dù model trả thiếu (Groq không có responseSchema như Gemini)
+function chuanHoaPhanTich(j) {
+  const mang = (x) => (Array.isArray(x) ? x.map(String).filter(Boolean) : [])
+  return {
+    tieuDe: String(j.tieuDe || 'Tri thức mới').slice(0, 150),
+    tomTat: String(j.tomTat || ''),
+    cacY: mang(j.cacY),
+    tags: mang(j.tags),
+    sanPhamLienQuan: mang(j.sanPhamLienQuan),
+    doTinCay: Math.max(0, Math.min(100, Number(j.doTinCay) || 0)),
+  }
+}
+
+// file: { ten, mimeType, base64 } (inline ≤ 14MB) | { ten, mimeType, uri } (đã tải lên Files API)
+export async function phanTichTaiLieu({ text = '', file = null, link = false }) {
+  // Chỉ có chữ → Groq (brain chính, nhiều lượt free) trước; Gemini dự phòng
+  if (!file && GROQ_KEY) {
+    try {
+      const raw = await aiNhanh(`${HE_THONG_BIEN_TAP}\n${MO_TA_JSON}`, yeuCauTrichXuat(text, null, { link }), { json: true, maxTokens: 3000 })
+      return chuanHoaPhanTich(docJSON(raw))
+    } catch (e) {
+      if (!API_KEY) throw e
+      console.warn('[Maika] Groq phân tích chữ lỗi → Gemini:', e.message)
+    }
+  }
+  if (!API_KEY) throw new Error(file ? 'Phân tích ảnh/video/tệp cần VITE_GEMINI_API_KEY' : 'Chưa cấu hình AI')
   const parts = []
-  if (file) parts.push({ inline_data: { mime_type: file.mimeType, data: file.base64 } })
-  parts.push({
-    text: `Phân tích nội dung ${file ? `tệp "${file.ten}" và ` : ''}ghi chú dưới đây, trích xuất KIẾN THỨC KỸ THUẬT (chống thấm, vật liệu xây dựng, nội thất) để nạp vào bộ nhớ của trợ lý Maika. Giữ nguyên số liệu, đơn vị, điều kiện thi công, cảnh báo. Bỏ phần quảng cáo/giá bán.\n\nGhi chú của Admin:\n${text || '(không có)'}`,
+  if (file?.uri) parts.push({ file_data: { ...(file.mimeType ? { mime_type: file.mimeType } : {}), file_uri: file.uri } })
+  else if (file) parts.push({ inline_data: { mime_type: file.mimeType, data: file.base64 } })
+  parts.push({ text: yeuCauTrichXuat(text, file, { link }) })
+  const raw = await sinhNoiDung(
+    {
+      systemInstruction: { parts: [{ text: HE_THONG_BIEN_TAP }] },
+      contents: [{ role: 'user', parts }],
+      generationConfig: { temperature: 0.2, maxOutputTokens: 8192, responseMimeType: 'application/json', responseSchema: SCHEMA_PHAN_TICH },
+    },
+    file ? MODEL_MULTIMODAL : MODEL,
+    file?.mimeType?.startsWith('video/') || file?.uri ? 180000 : 60000, // video: Gemini cần xem hết → chờ lâu hơn
+  )
+  return chuanHoaPhanTich(JSON.parse(raw))
+}
+
+// ============================================================
+//  DẠY MAIKA BẰNG LINK — Maika vào đọc trang rồi "suy ngẫm"
+//  1) YouTube → Gemini xem thẳng video (không tải về máy)
+//  2) Trang thường → app tự tải & bóc nội dung → Groq trích tri thức (nhanh, nhiều lượt)
+//  3) Trang cần JavaScript/đăng nhập, bóc không ra chữ → Gemini tự vào đọc (url_context)
+//  Trả về { ...tri thức, tieuDeTrang, cach: 'youtube'|'doc'|'gemini' }
+// ============================================================
+export async function phanTichLink(url, ghiChu = '', onTienDo = () => {}) {
+  if (laYouTube(url)) {
+    onTienDo('Gemini đang xem video YouTube… (video dài có thể mất 1–2 phút)')
+    return { ...(await phanTichTaiLieu({ text: ghiChu, file: { ten: url, uri: url, youtube: true } })), cach: 'youtube' }
+  }
+  let trang = null
+  try {
+    onTienDo('Maika đang mở trang…')
+    trang = trichTrang(await layText(url))
+  } catch (e) {
+    console.warn('[Maika] Không tự tải được trang → nhờ Gemini đọc:', e.message)
+  }
+  if (trang && trang.noiDung.length >= 300) {
+    onTienDo('Maika đang đọc & suy ngẫm…')
+    const text = `Tiêu đề trang: ${trang.tieuDe || '(không rõ)'}\nLink: ${url}\n${ghiChu ? `Ghi chú của Admin: ${ghiChu}\n` : ''}\n${trang.noiDung.slice(0, 9000)}`
+    return { ...(await phanTichTaiLieu({ text, link: true })), tieuDeTrang: trang.tieuDe, cach: 'doc' }
+  }
+  if (!API_KEY) throw new Error('Trang này không đọc trực tiếp được (cần đăng nhập/JavaScript) — dán nội dung chữ hoặc chụp ảnh màn hình thay thế')
+  onTienDo('Trang khó đọc — đang nhờ Gemini vào xem…')
+  const raw = await sinhNoiDung(
+    {
+      systemInstruction: { parts: [{ text: HE_THONG_BIEN_TAP }] },
+      contents: [{ role: 'user', parts: [{ text: `${yeuCauTrichXuat(ghiChu, null, { link: true })}\n\nHãy đọc trang: ${url}\nNếu không truy cập được trang, trả về JSON với "doTinCay": 0 và "tomTat" nêu lý do.\n${MO_TA_JSON}` }] }],
+      tools: [{ url_context: {} }],
+      generationConfig: { temperature: 0.2, maxOutputTokens: 8192 },
+    },
+    MODEL,
+    90000,
+  )
+  const kq = chuanHoaPhanTich(docJSON(raw))
+  if (!kq.cacY.length || kq.doTinCay === 0) throw new Error(`Không đọc được trang: ${kq.tomTat || 'trang yêu cầu đăng nhập hoặc chặn bot'}. Dán nội dung chữ hoặc chụp ảnh màn hình thay thế.`)
+  return { ...kq, cach: 'gemini' }
+}
+
+// ============================================================
+//  TẢI TỆP LỚN LÊN GEMINI FILES API (video dài, PDF dày ≤ 200MB, lưu 48 giờ phía Google)
+//  Resumable upload: start → upload+finalize → chờ xử lý xong (video cần vài chục giây)
+// ============================================================
+const MIME_TEP = { pdf: 'application/pdf', mp4: 'video/mp4', mov: 'video/quicktime', '3gp': 'video/3gpp', webm: 'video/webm', mkv: 'video/x-matroska', avi: 'video/x-msvideo', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', txt: 'text/plain' }
+
+export async function taiLenGemini(blob, ten, onTienDo = () => {}) {
+  if (!API_KEY) throw new Error('Chưa cấu hình VITE_GEMINI_API_KEY')
+  // Tệp từ Zalo/điện thoại hay có type rỗng → suy từ đuôi tệp (Gemini từ chối application/octet-stream)
+  const duoi = (blob.name || ten || '').split('.').pop().toLowerCase()
+  const mime = blob.type || MIME_AM_THANH[duoi] || MIME_TEP[duoi] || 'application/octet-stream'
+  onTienDo('Đang tải tệp lên Gemini…')
+  const batDau = await fetch('https://generativelanguage.googleapis.com/upload/v1beta/files', {
+    method: 'POST',
+    headers: {
+      'x-goog-api-key': API_KEY,
+      'X-Goog-Upload-Protocol': 'resumable',
+      'X-Goog-Upload-Command': 'start',
+      'X-Goog-Upload-Header-Content-Length': String(blob.size),
+      'X-Goog-Upload-Header-Content-Type': mime,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ file: { display_name: ten.slice(0, 100) } }),
   })
-  const raw = await sinhNoiDung({
-    systemInstruction: { parts: [{ text: 'Bạn là kỹ sư vật liệu xây dựng của Vật Liệu Nhà, chuyên biên tập tri thức kỹ thuật chính xác. Trả lời bằng tiếng Việt, đúng schema JSON.' }] },
-    contents: [{ role: 'user', parts }],
-    generationConfig: { temperature: 0.2, maxOutputTokens: 8192, responseMimeType: 'application/json', responseSchema: SCHEMA_PHAN_TICH },
+  const urlTai = batDau.headers.get('x-goog-upload-url')
+  if (!batDau.ok || !urlTai) throw new GeminiLoi(batDau.status || 500, (await batDau.text().catch(() => '')) || 'Không mở được phiên tải lên')
+  const tai = await fetch(urlTai, {
+    method: 'POST',
+    headers: { 'X-Goog-Upload-Offset': '0', 'X-Goog-Upload-Command': 'upload, finalize' },
+    body: blob,
   })
-  return JSON.parse(raw)
+  if (!tai.ok) throw new GeminiLoi(tai.status, await tai.text().catch(() => ''))
+  let { file } = await tai.json()
+  // Video phải ở trạng thái ACTIVE mới phân tích được
+  for (let i = 0; file.state === 'PROCESSING' && i < 90; i++) {
+    onTienDo(`Gemini đang xử lý ${mime.startsWith('video/') ? 'video' : 'tệp'}… ${i * 2}s`)
+    await ngu(2000)
+    const r = await fetch(`${BASE}/${file.name}`, { headers: { 'x-goog-api-key': API_KEY } })
+    if (r.ok) file = await r.json()
+  }
+  if (file.state !== 'ACTIVE') throw new Error(`Gemini chưa xử lý xong tệp (trạng thái ${file.state || '?'}) — thử lại sau ít phút`)
+  return { ten, mimeType: file.mimeType || mime, uri: file.uri }
 }
 
 // File (input type=file) → { ten, mimeType, base64 } để gửi kèm Gemini

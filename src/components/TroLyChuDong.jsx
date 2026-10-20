@@ -3,7 +3,8 @@ import { useAuth } from '../context/AuthContext'
 import { canFollowUp, coNguonBaoCao, taiBaoCao } from '../services/baoCaoSheets'
 import { useToast } from '../context/ToastContext'
 import { useViec } from '../hooks/useViec'
-import { LOAI_VIEC, nhanThoiGian, xoaViec } from '../data/viecStore'
+import { dauNgay, LOAI_VIEC, nhanThoiGian, xoaViec } from '../data/viecStore'
+import ScreenShell from './ScreenShell'
 import { aiCoCauHinh } from '../services/maikaChatbot'
 import {
   doiHan,
@@ -108,15 +109,83 @@ export function MaikaNhacHomNay({ onThem, onMo }) {
   )
 }
 
+const NHAN_NGUON = {
+  sheet: '🤖 Maika tự tạo từ báo cáo Google Sheet',
+  maika: '🤖 Maika tạo từ câu nói',
+  baogia: '📑 Từ báo giá vừa gửi',
+  donhang: '🧾 Từ đơn hàng',
+  tay: '✍️ Tạo tay',
+}
+
+// Tích hoàn thành / mở lại (dùng chung cho dòng việc & màn chi tiết)
+function useDanhDauXong() {
+  const toast = useToast()
+  return async (v) => {
+    try {
+      if (v.trangThai === 'xong') {
+        await moLaiViec(v)
+        toast('Đã mở lại việc', 'info')
+      } else {
+        await xongViec(v)
+        toast('Đã xong 👍', 'success')
+      }
+    } catch (e) {
+      toast('Lưu lỗi: ' + (e.message || e), 'error')
+    }
+  }
+}
+
 // ============================================================
-//  1 VIỆC — chạm để mở thao tác
+//  1 VIỆC — ô tích = hoàn thành (gạch ngang), chạm thẻ = xem chi tiết
 // ============================================================
-function DongViec({ v, bayGio }) {
+function DongViec({ v, bayGio, onXem }) {
+  const danhDau = useDanhDauXong()
+  const xong = v.trangThai === 'xong'
+  const quaHan = !xong && v.hanLuc < bayGio
+
+  return (
+    <div className={`flex items-center transition-opacity ${xong ? 'opacity-60' : ''}`}>
+      <button
+        onClick={() => danhDau(v)}
+        aria-label={xong ? 'Bỏ đánh dấu hoàn thành' : 'Đánh dấu hoàn thành'}
+        className="tap flex h-full flex-shrink-0 items-center py-3 pl-3 pr-1"
+      >
+        <span className={`flex h-6 w-6 items-center justify-center rounded-md border-2 text-xs font-black ${xong ? 'border-green-600 bg-green-600 text-white' : quaHan ? 'border-brand-500 bg-white' : 'border-gray-300 bg-white'}`}>
+          {xong ? '✓' : ''}
+        </span>
+      </button>
+      <button onClick={() => onXem(v)} className="tap flex min-w-0 flex-1 items-center gap-3 p-3 pl-2 text-left">
+        <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-base ${quaHan ? 'bg-brand-100' : 'bg-brand-50'}`}>
+          {LOAI_VIEC[v.loai]?.icon || '📝'}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className={`truncate text-sm font-bold ${xong ? 'text-gray-500 line-through decoration-2' : 'text-gray-900'}`}>{v.tieuDe}</div>
+          <div className={`truncate text-[11px] text-gray-500 ${xong ? 'line-through' : ''}`}>
+            {v.nguon === 'sheet' && <span className="mr-1 font-bold text-brand-600">Maika ·</span>}
+            {[v.khach, v.sanPham].filter(Boolean).join(' · ') || LOAI_VIEC[v.loai]?.nhan}
+          </div>
+        </div>
+        <div className={`flex-shrink-0 text-right text-[11px] font-semibold ${quaHan ? 'text-brand-600' : 'text-gray-500'}`}>
+          {quaHan && <div className="text-[9px] font-black uppercase">Quá hạn</div>}
+          {xong ? 'Đã xong' : nhanThoiGian(v.hanLuc)}
+        </div>
+      </button>
+    </div>
+  )
+}
+
+// ============================================================
+//  CHI TIẾT VIỆC — bottom sheet: thông tin đầy đủ + thao tác
+// ============================================================
+function ChiTietViecSheet({ id, onClose }) {
   const { user } = useAuth()
   const toast = useToast()
-  const [mo, setMo] = useState(false)
+  const { ds, bayGio } = useViec()
+  const danhDau = useDanhDauXong()
   const [tin, setTin] = useState('')
   const [dangSoan, setDangSoan] = useState(false)
+  const v = ds.find((x) => x.id === id)
+  if (!v) return null // vừa bị xoá
   const xong = v.trangThai === 'xong'
   const quaHan = !xong && v.hanLuc < bayGio
 
@@ -145,86 +214,163 @@ function DongViec({ v, bayGio }) {
     return d.getTime()
   }
 
-  return (
-    <div className={`${xong ? 'opacity-50' : ''}`}>
-      <button onClick={() => setMo((x) => !x)} className="tap flex w-full items-center gap-3 p-3 text-left">
-        <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-lg ${quaHan ? 'bg-brand-100' : 'bg-brand-50'}`}>
-          {xong ? '✅' : LOAI_VIEC[v.loai]?.icon || '📝'}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className={`truncate text-sm font-bold ${xong ? 'text-gray-500 line-through' : 'text-gray-900'}`}>{v.tieuDe}</div>
-          <div className="truncate text-[11px] text-gray-500">{[v.khach, v.sanPham].filter(Boolean).join(' · ') || LOAI_VIEC[v.loai]?.nhan}</div>
-        </div>
-        <div className={`flex-shrink-0 text-right text-[11px] font-semibold ${quaHan ? 'text-brand-600' : 'text-gray-500'}`}>
-          {quaHan && <div className="text-[9px] font-black uppercase">Quá hạn</div>}
-          {nhanThoiGian(v.hanLuc)}
-        </div>
-      </button>
+  const xoa = async () => {
+    await huyNhac(v)
+    await xoaViec(v.id)
+    toast('Đã xoá việc', 'info')
+    onClose()
+  }
+  const nut = 'tap rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700'
+  const dong = (nhan, giaTri) =>
+    giaTri ? (
+      <div className="flex gap-3 py-1.5 text-xs">
+        <span className="w-20 flex-shrink-0 text-gray-400">{nhan}</span>
+        <span className="min-w-0 flex-1 whitespace-pre-line text-gray-800">{giaTri}</span>
+      </div>
+    ) : null
 
-      {mo && (
-        <div className="space-y-2 bg-gray-50 px-3 pb-3 pt-1">
-          {v.ghiChu && <p className="text-[11px] text-gray-600">📝 {v.ghiChu}</p>}
-          <div className="flex flex-wrap gap-1.5">
-            {xong ? (
-              <button onClick={() => moLaiViec(v)} className="tap rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-gray-700">↩ Mở lại</button>
-            ) : (
-              <>
-                <button onClick={() => xongViec(v).then(() => toast('Đã xong 👍', 'success'))} className="tap rounded-lg bg-green-600 px-2.5 py-1.5 text-[11px] font-bold text-white">✓ Xong</button>
-                <button onClick={() => doiHan(v, { phut: 60 }).then(() => toast('Đã dời 1 giờ', 'info'))} className="tap rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-gray-700">⏰ +1 giờ</button>
-                <button onClick={() => doiHan(v, { luc: hanMai9h() }).then(() => toast('Đã dời sang 9:00 mai', 'info'))} className="tap rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-gray-700">📅 Mai 9h</button>
-                {aiCoCauHinh() && (
-                  <button onClick={soan} disabled={dangSoan} className="tap rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1.5 text-[11px] font-bold text-brand-700 disabled:opacity-50">
-                    {dangSoan ? '✍️ Đang soạn…' : '✍️ Maika soạn tin'}
-                  </button>
-                )}
-                {v.sdt && (
-                  <a href={`tel:${v.sdt.replace(/\s/g, '')}`} className="tap rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-gray-700">📞 {v.sdt}</a>
-                )}
-              </>
-            )}
-            <button onClick={() => huyNhac(v).then(() => xoaViec(v.id))} className="tap rounded-lg px-2 py-1.5 text-[11px] font-semibold text-red-500">Xoá</button>
-          </div>
-          {tin && (
-            <div className="rounded-xl border border-brand-100 bg-white p-2.5">
-              <textarea value={tin} onChange={(e) => setTin(e.target.value)} rows={5} className="w-full resize-none text-xs leading-relaxed text-gray-700 outline-none" />
-              <button onClick={chep} className="tap mt-1 w-full rounded-lg bg-brand-600 py-1.5 text-[11px] font-bold text-white">📋 Chép tin nhắn</button>
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40" onClick={onClose}>
+      <div className="anim-sheet max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-5 pb-8" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-start gap-3">
+          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-brand-50 text-xl">{LOAI_VIEC[v.loai]?.icon || '📝'}</span>
+          <div className="min-w-0 flex-1">
+            <div className={`text-base font-black ${xong ? 'text-gray-500 line-through' : 'text-gray-900'}`}>{v.tieuDe}</div>
+            <div className="mt-0.5 flex flex-wrap gap-1.5 text-[10px] font-bold">
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-600">{LOAI_VIEC[v.loai]?.nhan || 'Việc khác'}</span>
+              {xong ? (
+                <span className="rounded-full bg-green-50 px-2 py-0.5 text-green-700">✓ Hoàn thành {v.xongLuc ? nhanThoiGian(v.xongLuc) : ''}</span>
+              ) : quaHan ? (
+                <span className="rounded-full bg-brand-50 px-2 py-0.5 text-brand-700">Quá hạn</span>
+              ) : (
+                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">Đang chờ</span>
+              )}
             </div>
+          </div>
+          <button onClick={onClose} className="tap h-8 w-8 flex-shrink-0 rounded-full bg-gray-100 text-sm text-gray-500">✕</button>
+        </div>
+
+        <div className="divide-y divide-gray-50 rounded-xl border border-gray-100 px-3 py-1">
+          {dong('Hạn', nhanThoiGian(v.hanLuc))}
+          {dong('Khách', v.khach)}
+          {dong('SĐT', v.sdt)}
+          {dong('Sản phẩm', v.sanPham)}
+          {dong('Ghi chú', v.ghiChu)}
+          {dong('Nguồn', NHAN_NGUON[v.nguon] || v.nguon)}
+          {dong('Tạo lúc', v.taoLuc && new Date(v.taoLuc).toLocaleString('vi-VN'))}
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button onClick={() => danhDau(v)} className={`tap flex-1 rounded-xl px-3 py-2.5 text-sm font-bold ${xong ? 'border border-gray-200 text-gray-700' : 'bg-green-600 text-white'}`}>
+            {xong ? '↩ Mở lại' : '✓ Hoàn thành'}
+          </button>
+          {v.sdt && (
+            <a href={`tel:${v.sdt.replace(/\s/g, '')}`} className="tap flex-1 rounded-xl bg-brand-600 px-3 py-2.5 text-center text-sm font-bold text-white">📞 Gọi khách</a>
           )}
         </div>
-      )}
+        {!xong && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <button onClick={() => doiHan(v, { phut: 60 }).then(() => toast('Đã dời 1 giờ', 'info'))} className={nut}>⏰ +1 giờ</button>
+            <button onClick={() => doiHan(v, { luc: hanMai9h() }).then(() => toast('Đã dời sang 9:00 mai', 'info'))} className={nut}>📅 Mai 9h</button>
+            {aiCoCauHinh() && (
+              <button onClick={soan} disabled={dangSoan} className="tap rounded-xl border border-brand-200 bg-brand-50 px-3 py-2 text-xs font-bold text-brand-700 disabled:opacity-50">
+                {dangSoan ? '✍️ Đang soạn…' : '✍️ Maika soạn tin'}
+              </button>
+            )}
+          </div>
+        )}
+        {tin && (
+          <div className="mt-3 rounded-xl border border-brand-100 bg-white p-2.5">
+            <textarea value={tin} onChange={(e) => setTin(e.target.value)} rows={5} className="w-full resize-none text-xs leading-relaxed text-gray-700 outline-none" />
+            <button onClick={chep} className="tap mt-1 w-full rounded-lg bg-brand-600 py-1.5 text-[11px] font-bold text-white">📋 Chép tin nhắn</button>
+          </div>
+        )}
+        <button onClick={xoa} className="tap mt-4 w-full py-2 text-xs font-semibold text-red-500">Xoá việc này</button>
+      </div>
+    </div>
+  )
+}
+
+// Danh sách việc (có ô tích + mở chi tiết) — dùng ở Màn 1 và màn Tất cả việc
+function KhungViec({ ds, bayGio, onXem, rong }) {
+  if (!ds.length) return rong
+  return (
+    <div className="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-100 bg-white">
+      {ds.map((v) => (
+        <DongViec key={v.id} v={v} bayGio={bayGio} onXem={onXem} />
+      ))}
     </div>
   )
 }
 
 // ============================================================
-//  DANH SÁCH VIỆC (Màn 1) — mặc định: quá hạn + hôm nay + 2 ngày tới
+//  TẤT CẢ VIỆC — lọc Chờ làm / Quá hạn / Đã xong / Tất cả
+// ============================================================
+const LOC_VIEC = [
+  { id: 'cho', nhan: 'Chờ làm', loc: (v) => v.trangThai === 'cho' },
+  { id: 'quahan', nhan: 'Quá hạn', loc: (v, t) => v.trangThai === 'cho' && v.hanLuc < t },
+  { id: 'xong', nhan: 'Đã xong', loc: (v) => v.trangThai === 'xong' },
+  { id: 'tat', nhan: 'Tất cả', loc: () => true },
+]
+
+function TatCaViecScreen({ onClose, onThem, onXem }) {
+  const { ds, bayGio } = useViec()
+  const [loc, setLoc] = useState('cho')
+  const hien = ds.filter((v) => LOC_VIEC.find((l) => l.id === loc).loc(v, bayGio))
+  const footer = (
+    <button onClick={() => onThem('viec')} className="tap w-full rounded-xl bg-brand-600 py-3 text-sm font-bold text-white">+ Thêm việc mới</button>
+  )
+  return (
+    <ScreenShell title={`Tất cả việc (${ds.length})`} onClose={onClose} footer={footer}>
+      <div className="mb-3 flex gap-1.5 overflow-x-auto">
+        {LOC_VIEC.map((l) => (
+          <button key={l.id} onClick={() => setLoc(l.id)}
+            className={`tap flex-shrink-0 rounded-full border px-3 py-1 text-[11px] font-semibold ${loc === l.id ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-gray-200 bg-white text-gray-600'}`}>
+            {l.nhan} ({ds.filter((v) => l.loc(v, bayGio)).length})
+          </button>
+        ))}
+      </div>
+      <KhungViec ds={hien} bayGio={bayGio} onXem={onXem}
+        rong={<div className="rounded-2xl border border-dashed border-gray-200 bg-white p-8 text-center text-xs text-gray-400">Không có việc nào trong mục này.</div>} />
+    </ScreenShell>
+  )
+}
+
+// ============================================================
+//  VIỆC CẦN LÀM HÔM NAY (Màn 1) — dữ liệu thật từ kho việc trên máy:
+//  quá hạn + đến hạn trong hôm nay + việc đã tích xong hôm nay (gạch ngang)
 // ============================================================
 export function DanhSachViec({ onThem }) {
   const { ds, bayGio } = useViec()
-  const [tatCa, setTatCa] = useState(false)
-  const gioiHan = bayGio + 2 * 864e5
-  const hien = tatCa ? ds : ds.filter((v) => v.trangThai === 'cho' && v.hanLuc < gioiHan)
-  const soXong = ds.filter((v) => v.trangThai === 'xong').length
+  const [xemTatCa, setXemTatCa] = useState(false)
+  const [xemId, setXemId] = useState(null)
+  const homNay = dauNgay(bayGio)
+  const cuoiNgay = homNay + 864e5
+  const hien = ds.filter((v) => (v.trangThai === 'cho' ? v.hanLuc < cuoiNgay : (v.xongLuc || 0) >= homNay))
+  const soCho = hien.filter((v) => v.trangThai === 'cho').length
+  const soSapToi = ds.filter((v) => v.trangThai === 'cho' && v.hanLuc >= cuoiNgay).length
+  const xem = (v) => setXemId(v.id)
 
   return (
     <div>
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-base font-black text-gray-900">Việc cần làm</h3>
-        <button onClick={() => setTatCa((x) => !x)} className="text-xs font-semibold text-brand-600">
-          {tatCa ? 'Thu gọn' : `Xem tất cả (${ds.length}) ›`}
-        </button>
+        <h3 className="text-base font-black text-gray-900">
+          Việc cần làm hôm nay {soCho > 0 && <span className="ml-1 rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] text-white">{soCho}</span>}
+        </h3>
+        <button onClick={() => setXemTatCa(true)} className="tap text-xs font-semibold text-brand-600">Xem tất cả ({ds.length}) ›</button>
       </div>
-      {hien.length === 0 ? (
-        <button onClick={() => onThem('viec')} className="tap w-full rounded-2xl border border-dashed border-gray-200 bg-white p-5 text-center text-xs text-gray-400">
-          {ds.length ? `Không có việc gấp${soXong ? ` · đã xong ${soXong} việc` : ''}. ` : ''}Chạm để thêm việc / lịch hẹn.
-        </button>
-      ) : (
-        <div className="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-100 bg-white">
-          {hien.map((v) => (
-            <DongViec key={v.id} v={v} bayGio={bayGio} />
-          ))}
-        </div>
-      )}
+      <KhungViec ds={hien} bayGio={bayGio} onXem={xem}
+        rong={
+          <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-5 text-center text-xs text-gray-400">
+            Hôm nay chưa có việc nào cần làm{soSapToi ? ` · ${soSapToi} việc sắp tới` : ''}.
+          </div>
+        } />
+      <button onClick={() => onThem('viec')} className="tap mt-2 w-full rounded-xl border border-dashed border-brand-300 bg-white py-2.5 text-xs font-bold text-brand-700">
+        + Thêm việc mới
+      </button>
+
+      {xemTatCa && <TatCaViecScreen onClose={() => setXemTatCa(false)} onThem={onThem} onXem={xem} />}
+      {xemId && <ChiTietViecSheet id={xemId} onClose={() => setXemId(null)} />}
     </div>
   )
 }

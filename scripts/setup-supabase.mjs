@@ -1,18 +1,25 @@
 // ============================================================
-//  Cài kho tri thức chung của Maika lên Supabase (chạy 1 lần, chạy lại được)
-//  $env:SUPABASE_ACCESS_TOKEN="sbp_..."; node scripts/setup-supabase.mjs
-//  Tuỳ chọn: SUPABASE_PROJECT=<ref hoặc tên>, ADMIN_PIN=<PIN muốn đặt>
-//  Việc làm: chạy supabase/schema.sql → đặt PIN Admin → lấy URL + key public
-//  → ghi VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY vào .env.local → tự kiểm tra.
+//  Cài "bộ não chung" của Maika lên Supabase (chạy 1 lần, chạy lại được)
+//  node scripts/setup-supabase.mjs
+//  Token: biến SUPABASE_ACCESS_TOKEN, hoặc file .supabase-token.local (gitignore)
+//  Tuỳ chọn: SUPABASE_PROJECT=<ref hoặc tên>, ADMIN_PIN=<PIN muốn đặt>, BO_QUA_HAM=1 (không deploy hàm)
+//  Việc làm:
+//   1) chạy supabase/schema.sql (kho tri thức, PIN Admin, đếm lượt)
+//   2) đặt PIN Admin → ghi vào .admin-pin.local (KHÔNG in ra màn hình)
+//   3) đưa GEMINI_API_KEY / GROQ_API_KEY từ .env.local vào Secrets của Supabase
+//   4) deploy hàm máy chủ "maika" (supabase/functions/maika) — app + web cùng gọi
+//   5) ghi VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY vào .env.local → tự kiểm tra
 // ============================================================
+import { execFileSync } from 'node:child_process'
 import { randomInt } from 'node:crypto'
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const TOKEN = process.env.SUPABASE_ACCESS_TOKEN
-if (!TOKEN) throw new Error('Thiếu SUPABASE_ACCESS_TOKEN (tạo tại supabase.com/dashboard/account/tokens)')
+const fileToken = join(ROOT, '.supabase-token.local')
+const TOKEN = process.env.SUPABASE_ACCESS_TOKEN || (existsSync(fileToken) ? readFileSync(fileToken, 'utf8').trim() : '')
+if (!TOKEN) throw new Error('Thiếu token: tạo tại supabase.com/dashboard/account/tokens rồi lưu vào .supabase-token.local')
 
 const API = 'https://api.supabase.com/v1'
 async function api(duongDan, opts = {}) {
@@ -27,14 +34,18 @@ async function api(duongDan, opts = {}) {
 const sql = (ref, query) => api(`/projects/${ref}/database/query`, { method: 'POST', body: JSON.stringify({ query }) })
 const ngu = (ms) => new Promise((r) => setTimeout(r, ms))
 
+const envPath = join(ROOT, '.env.local')
+let env = existsSync(envPath) ? readFileSync(envPath, 'utf8') : ''
+const docEnv = (ten) => (env.match(new RegExp(`^${ten}=(.*)$`, 'm'))?.[1] || '').trim()
+
 // 1) Chọn project
 const projects = await api('/projects')
 const muon = process.env.SUPABASE_PROJECT
 const p =
   projects.find((x) => muon && (x.id === muon || x.ref === muon || x.name === muon)) ||
-  projects.find((x) => x.name === 'vln-maika') ||
+  projects.find((x) => ['maika', 'vln-maika'].includes(x.name)) ||
   (projects.length === 1 ? projects[0] : null)
-if (!p) throw new Error('Không xác định được project. Có: ' + projects.map((x) => `${x.name} (${x.id})`).join(', '))
+if (!p) throw new Error('Không xác định được project. Có: ' + (projects.map((x) => `${x.name} (${x.id})`).join(', ') || '(chưa có — tạo project "maika" trên dashboard)'))
 const ref = p.ref || p.id
 console.log(`Project: ${p.name} (${ref}) · ${p.region} · ${p.status}`)
 for (let i = 0; i < 40 && (await api(`/projects/${ref}`)).status !== 'ACTIVE_HEALTHY'; i++) {
@@ -44,9 +55,9 @@ for (let i = 0; i < 40 && (await api(`/projects/${ref}`)).status !== 'ACTIVE_HEA
 
 // 2) Schema
 await sql(ref, readFileSync(join(ROOT, 'supabase', 'schema.sql'), 'utf8'))
-console.log('✓ Đã tạo bảng tri_thuc, pgvector, hàm RPC')
+console.log('✓ Đã tạo bảng tri_thuc, pgvector, đếm lượt, hàm RPC')
 
-// 3) PIN Admin (chỉ đặt khi chưa có hoặc truyền ADMIN_PIN)
+// 3) PIN Admin (chỉ đặt khi chưa có hoặc truyền ADMIN_PIN) — ghi file, không in
 const daCoPin = (await sql(ref, 'select count(*)::int as n from public.admin_pin'))[0].n > 0
 let pinMoi = process.env.ADMIN_PIN || ''
 if (!daCoPin && !pinMoi) {
@@ -57,43 +68,68 @@ if (pinMoi) {
   if (!/^[A-Za-z0-9]{6,32}$/.test(pinMoi)) throw new Error('ADMIN_PIN chỉ gồm chữ/số, 6–32 ký tự')
   await sql(ref, `insert into public.admin_pin (id, pin_hash) values (1, extensions.crypt('${pinMoi}', extensions.gen_salt('bf', 10)))
                   on conflict (id) do update set pin_hash = excluded.pin_hash`)
-  console.log('✓ Đã đặt PIN Admin')
+  writeFileSync(join(ROOT, '.admin-pin.local'), pinMoi + '\n', 'utf8')
+  console.log('✓ Đã đặt PIN Admin → lưu ở .admin-pin.local (mở file để xem)')
 } else {
   console.log('• Giữ nguyên PIN Admin đang có')
 }
 
-// 4) Key public (ưu tiên publishable key mới, fallback anon legacy)
+// 4) Secrets: key AI chỉ nằm trên máy chủ
+const secrets = [
+  ['GEMINI_API_KEY', docEnv('VITE_GEMINI_API_KEY')],
+  ['GROQ_API_KEY', docEnv('VITE_GROQ_API_KEY')],
+].filter(([, v]) => v)
+if (secrets.length) {
+  await api(`/projects/${ref}/secrets`, { method: 'POST', body: JSON.stringify(secrets.map(([name, value]) => ({ name, value }))) })
+  console.log(`✓ Đã cất ${secrets.map(([n]) => n).join(', ')} vào Secrets của Supabase`)
+} else {
+  console.log('⚠ .env.local chưa có VITE_GEMINI_API_KEY / VITE_GROQ_API_KEY — hàm maika sẽ chưa trả lời được')
+}
+
+// 5) Deploy hàm "maika" (Supabase CLI bundle trên máy chủ, không cần Docker)
+if (!process.env.BO_QUA_HAM) {
+  execFileSync('npx', ['--yes', 'supabase@latest', 'functions', 'deploy', 'maika', '--project-ref', ref, '--use-api', '--no-verify-jwt'], {
+    cwd: ROOT,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+    env: { ...process.env, SUPABASE_ACCESS_TOKEN: TOKEN },
+  })
+  console.log('✓ Đã deploy hàm maika')
+}
+
+// 6) Key public (ưu tiên publishable key mới, fallback anon legacy) → .env.local
 const keys = await api(`/projects/${ref}/api-keys?reveal=true`)
 const k = keys.find((x) => x.type === 'publishable') || keys.find((x) => x.name === 'anon')
 if (!k?.api_key) throw new Error('Không lấy được key public của project')
 const url = `https://${ref}.supabase.co`
-
-// 5) Ghi .env.local
-const envPath = join(ROOT, '.env.local')
-let env = existsSync(envPath) ? readFileSync(envPath, 'utf8') : ''
 const datBien = (ten, giaTri) => {
   const dong = `${ten}=${giaTri}`
   env = new RegExp(`^${ten}=.*$`, 'm').test(env) ? env.replace(new RegExp(`^${ten}=.*$`, 'm'), dong) : env.replace(/\s*$/, '') + `\n${dong}\n`
 }
-if (!env.includes('VITE_SUPABASE_URL')) env = env.replace(/\s*$/, '') + '\n\n# Kho tri thức chung của Maika (Supabase) — key public, chỉ đọc; ghi cần PIN Admin\n'
+if (!env.includes('VITE_SUPABASE_URL')) env = env.replace(/\s*$/, '') + '\n\n# Bộ não chung Maika (Supabase) — key public, chỉ đọc; ghi cần PIN Admin\n'
 datBien('VITE_SUPABASE_URL', url)
 datBien('VITE_SUPABASE_ANON_KEY', k.api_key)
 writeFileSync(envPath, env, 'utf8')
 console.log(`✓ Đã ghi VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY (${k.type || k.name}) vào .env.local`)
 
-// 6) Tự kiểm tra bằng đúng key app sẽ dùng
-const rest = (path, body) =>
-  fetch(`${url}/rest/v1/${path}`, {
-    method: body ? 'POST' : 'GET',
-    headers: { apikey: k.api_key, Authorization: `Bearer ${k.api_key}`, 'Content-Type': 'application/json' },
-    body: body && JSON.stringify(body),
-  })
-const doc = await rest('tri_thuc?select=id&limit=1')
-const ghiTrucTiep = await rest('tri_thuc', { id: 'hack', loai: 'web', trang_thai: 'da_duyet' })
-console.log(`✓ Kiểm tra: đọc bảng HTTP ${doc.status} (kỳ vọng 200) · ghi trực tiếp bằng key public HTTP ${ghiTrucTiep.status} (kỳ vọng 401/403 = bị chặn)`)
-if (pinMoi) {
-  const ok = await (await rest('rpc/kiem_tra_pin', { p_pin: pinMoi })).json()
-  console.log(`✓ PIN Admin xác thực qua API: ${ok}`)
-  console.log(`\n>>> PIN ADMIN: ${pinMoi}   (nhập ở app: Tài khoản → Kho tri thức chung)\n`)
+// Khung chat web gọi đúng hàm maika của project này
+const widgetPath = join(ROOT, 'web', 'maika-widget.js')
+if (existsSync(widgetPath)) {
+  const w = readFileSync(widgetPath, 'utf8')
+  const moi = w.replace(/var URL_MAIKA = CAU_HINH\.url \|\| '[^']*'/, `var URL_MAIKA = CAU_HINH.url || '${url}/functions/v1/maika'`)
+  if (moi !== w) writeFileSync(widgetPath, moi, 'utf8')
+  console.log('✓ web/maika-widget.js trỏ tới ' + `${url}/functions/v1/maika`)
+}
+
+// 7) Tự kiểm tra bằng đúng key app/web sẽ dùng
+const hdr = { apikey: k.api_key, Authorization: `Bearer ${k.api_key}`, 'Content-Type': 'application/json' }
+const doc = await fetch(`${url}/rest/v1/tri_thuc?select=id&limit=1`, { headers: hdr })
+const ghi = await fetch(`${url}/rest/v1/tri_thuc`, { method: 'POST', headers: hdr, body: JSON.stringify({ id: 'hack', loai: 'web', trang_thai: 'da_duyet' }) })
+const luot = await fetch(`${url}/rest/v1/rpc/dem_luot`, { method: 'POST', headers: hdr, body: JSON.stringify({ p_khoa: 'x', p_gioi_han: 1, p_khoa_tong: 'y', p_gioi_han_tong: 1 }) })
+console.log(`✓ Kiểm tra: đọc HTTP ${doc.status} (kỳ vọng 200) · ghi bằng key public HTTP ${ghi.status} (kỳ vọng 401/403) · gọi dem_luot bằng key public HTTP ${luot.status} (kỳ vọng 401/403/404)`)
+if (!process.env.BO_QUA_HAM) {
+  const r = await fetch(`${url}/functions/v1/maika`, { method: 'POST', headers: hdr, body: JSON.stringify({ cheDo: 'khach', lichSu: [{ tu: 'user', text: 'Chống thấm sàn vệ sinh nên dùng vật liệu gì?' }] }) })
+  const j = await r.json().catch(() => ({}))
+  console.log(`✓ Thử hỏi Maika (chế độ khách): HTTP ${r.status} · ${j.nhaCungCap || ''} · ${(j.text || j.loi || '').slice(0, 160).replace(/\s+/g, ' ')}…`)
 }
 console.log(`URL=${url}`)

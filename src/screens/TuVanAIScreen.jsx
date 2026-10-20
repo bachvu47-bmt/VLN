@@ -3,7 +3,7 @@ import ScreenShell from '../components/ScreenShell'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { useGhiAm } from '../hooks/useGhiAm'
-import { blobSangBase64, capNhatMedia, luuMedia, thuNhoAnh } from '../data/mediaStore'
+import { blobSangBase64, capNhatMedia, chepFileVaoBoNho, luuMedia, thuNhoAnh } from '../data/mediaStore'
 import { MAIKA, MAIKA_GOI_Y, maikaChao } from '../services/maika'
 import { maikaChatAI, maikaCheDo } from '../services/maikaAI'
 import { chuyenGiongNoi } from '../services/maikaChatbot'
@@ -205,17 +205,23 @@ export default function TuVanAIScreen({ onClose, onMo }) {
     if ((!noiDung && !anhCho) || dangGo) return
     const tinMoi = { id: ++_mid, tu: 'user', text: noiDung }
     if (anhCho) {
+      let blob
       try {
-        const blob = await thuNhoAnh(anhCho.file)
-        const md = await luuMedia(blob, { loai: 'anh', nguoi: user.hoTen })
+        blob = await thuNhoAnh(anhCho.file)
         Object.assign(tinMoi, {
-          anh: { mime: md.mime, base64: await blobSangBase64(blob) },
+          anh: { mime: blob.type || 'image/jpeg', base64: await blobSangBase64(blob) },
           coAnh: true,
           anhUrl: anhCho.url,
-          media: [{ id: md.id, loai: 'anh' }],
         })
       } catch (e) {
         return toast('Không đọc được ảnh: ' + (e.message || e), 'error')
+      }
+      // Lưu kho media chỉ để làm thẻ tri thức — lỗi ghi IndexedDB KHÔNG được chặn việc hỏi Maika
+      try {
+        const md = await luuMedia(blob, { loai: 'anh', nguoi: user.hoTen })
+        tinMoi.media = [{ id: md.id, loai: 'anh' }]
+      } catch (e) {
+        console.warn('[Maika] Không lưu được ảnh vào máy:', e.message)
       }
     }
     const lichSu = [...msgs, tinMoi]
@@ -225,12 +231,20 @@ export default function TuVanAIScreen({ onClose, onMo }) {
     hoiMaika(lichSu, tinMoi)
   }
 
-  const chonAnh = (e) => {
+  const chonAnh = async (e) => {
     const f = e.target.files?.[0]
     e.target.value = ''
     if (!f) return
-    if (!f.type.startsWith('image/')) return toast('Chỉ hỗ trợ tệp ảnh', 'error')
-    setAnhCho({ file: f, url: URL.createObjectURL(f) })
+    // Một số trình chọn ảnh Android trả type rỗng → nhận theo đuôi tệp
+    // HEIC (iPhone/một số máy Samsung): WebView/Electron không hiển thị & không thu nhỏ được → báo rõ
+    if (/heic|heif/i.test(f.type) || /\.(heic|heif)$/i.test(f.name)) return toast('Ảnh HEIC chưa hỗ trợ — chụp lại bằng camera trong app hoặc chọn ảnh JPG/PNG', 'error')
+    if (!f.type.startsWith('image/') && !/\.(jpe?g|png|webp|gif|bmp)$/i.test(f.name)) return toast('Chỉ hỗ trợ tệp ảnh', 'error')
+    try {
+      const file = await chepFileVaoBoNho(f) // đọc ngay khi còn quyền truy cập tệp
+      setAnhCho({ file, url: URL.createObjectURL(file) })
+    } catch (err) {
+      toast(`Không có quyền đọc ảnh (${err.name || err.message}). Thử chọn lại ảnh, hoặc cấp quyền Ảnh/Bộ nhớ cho app trong Cài đặt.`, 'error')
+    }
   }
 
   // ---- Giữ để nói ----
@@ -243,8 +257,8 @@ export default function TuVanAIScreen({ onClose, onMo }) {
     setMsgs((ds) => [...ds, tinMoi])
     try {
       const banGhi = await chuyenGiongNoi(blob)
-      const md = await luuMedia(blob, { loai: 'am_thanh', nguoi: user.hoTen, banGhi })
-      const xong = { ...tinMoi, text: banGhi, dangChep: false, media: [{ id: md.id, loai: 'am_thanh' }] }
+      const md = await luuMedia(blob, { loai: 'am_thanh', nguoi: user.hoTen, banGhi }).catch((e) => console.warn('[Maika] Không lưu được ghi âm:', e.message))
+      const xong = { ...tinMoi, text: banGhi, dangChep: false, media: md ? [{ id: md.id, loai: 'am_thanh' }] : [] }
       const lichSu = msgsRef.current.map((x) => (x.id === tinMoi.id ? xong : x))
       setMsgs(lichSu)
       hoiMaika(lichSu, xong)

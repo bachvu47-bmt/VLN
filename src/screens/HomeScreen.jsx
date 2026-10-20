@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { DON_HANG, SAN_PHAM, SP_GAN_DAY } from '../data/mockData'
+import { useEffect, useReducer, useState } from 'react'
+import { laySpGanDay } from '../data/ganDayStore'
+import { dangKyTheoDoi } from '../data/productStore'
 import { DanhSachViec, MaikaNhacHomNay, ThemViecSheet } from '../components/TroLyChuDong'
 
 function Ico({ d, className = 'h-6 w-6' }) {
@@ -19,9 +20,10 @@ const SHORTCUTS = [
 
 export default function HomeScreen({ onTab, onMo }) {
   const [themViec, setThemViec] = useState(null) // 'viec' | 'baogia'
-  const donTuVan = DON_HANG[0]
-  const sp0 = SAN_PHAM.find((s) => s.ma === donTuVan.sanPham[0].ma)
-  const ganDay = SP_GAN_DAY.map((ma) => SAN_PHAM.find((s) => s.ma === ma)).filter(Boolean)
+  // Sản phẩm web nạp từ IndexedDB sau lần render đầu → vẽ lại khi kho sẵn sàng / đồng bộ xong
+  const [, veLai] = useReducer((x) => x + 1, 0)
+  useEffect(() => dangKyTheoDoi(veLai), [])
+  const ganDay = laySpGanDay()
 
   return (
     <div className="space-y-5">
@@ -51,60 +53,26 @@ export default function HomeScreen({ onTab, onMo }) {
         ))}
       </div>
 
-      {/* Card AI — đơn cần tư vấn */}
-      <div className="rounded-2xl border border-brand-100 bg-brand-50 p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="rounded-md bg-brand-600 px-1.5 py-0.5 text-[10px] font-black text-white">Maika</span>
-            <span className="text-sm font-black text-gray-900">Đơn hoàn thành — cần tư vấn</span>
+      {/* Sản phẩm tra cứu gần đây — sản phẩm người dùng đã thực sự mở */}
+      {ganDay.length > 0 && (
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-base font-black text-gray-900">Sản phẩm tra cứu gần đây</h3>
+            <button onClick={() => onTab('lookup')} className="text-xs font-semibold text-brand-600">Xem tất cả ›</button>
           </div>
-          <span className="h-2.5 w-2.5 rounded-full bg-brand-600" />
-        </div>
-
-        <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white text-gray-400">
-            <Ico d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z M5 20a7 7 0 0 1 14 0" className="h-5 w-5" />
-          </span>
-          <div className="text-sm leading-relaxed">
-            <div className="font-bold text-gray-900">{donTuVan.khach} <span className="text-[11px] font-normal text-gray-400">(Dữ liệu minh họa)</span></div>
-            <div className="text-gray-600">Đã mua: <b>{sp0?.ten}</b> <span className="text-[11px] text-gray-400">(Dữ liệu minh họa)</span></div>
-            <div className="text-gray-500">Ngày bán: {donTuVan.ngay}</div>
-          </div>
-        </div>
-
-        <div className="mt-3 flex gap-3 rounded-xl bg-white p-3">
-          <div className="flex-shrink-0 text-center">
-            <div className={`flex h-16 w-16 items-center justify-center rounded-lg ${sp0?.anhBg}`}><span className="text-3xl">{sp0?.icon}</span></div>
-            <div className="mt-1 text-[9px] text-gray-400">Dữ liệu minh họa</div>
-          </div>
-          <div>
-            <div className="flex items-center gap-1 text-sm font-bold text-brand-600">✦ Gợi ý tư vấn sau bán</div>
-            <p className="mt-1 text-xs leading-relaxed text-gray-600">{donTuVan.goiY}</p>
+          <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
+            {ganDay.map((sp) => (
+              <button key={sp.id} onClick={() => onMo('detail', sp)} className="tap w-32 flex-shrink-0 rounded-xl border border-gray-100 bg-white p-2 text-left shadow-sm">
+                <div className={`flex h-20 items-center justify-center overflow-hidden rounded-lg ${sp.anhBg || 'bg-gray-50'}`}>
+                  {sp.anh ? <img src={sp.anh} alt="" loading="lazy" className="h-full w-full object-contain" /> : <span className="text-4xl">{sp.icon}</span>}
+                </div>
+                <div className="mt-2 truncate text-sm font-bold text-gray-900">{sp.ten}</div>
+                <div className="truncate text-[11px] text-gray-500">{sp.tenNgan}</div>
+              </button>
+            ))}
           </div>
         </div>
-
-        <button onClick={() => onTab('sauban')} className="tap mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 py-3 text-sm font-bold text-white hover:bg-brand-700">
-          Xem gợi ý <span>›</span>
-        </button>
-      </div>
-
-      {/* Sản phẩm tra cứu gần đây */}
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-base font-black text-gray-900">Sản phẩm tra cứu gần đây</h3>
-          <button onClick={() => onTab('lookup')} className="text-xs font-semibold text-brand-600">Xem tất cả ›</button>
-        </div>
-        <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
-          {ganDay.map((sp) => (
-            <button key={sp.ma} onClick={() => onMo('detail', sp)} className="tap w-32 flex-shrink-0 rounded-xl border border-gray-100 bg-white p-2 text-left shadow-sm">
-              <div className={`flex h-20 items-center justify-center rounded-lg ${sp.anhBg}`}><span className="text-4xl">{sp.icon}</span></div>
-              <div className="mt-2 truncate text-sm font-bold text-gray-900">{sp.ten}</div>
-              <div className="truncate text-[11px] text-gray-500">{sp.tenNgan}</div>
-              <div className="mt-0.5 text-[9px] text-gray-400">Dữ liệu minh họa</div>
-            </button>
-          ))}
-        </div>
-      </div>
+      )}
 
       {themViec && <ThemViecSheet cheDo={themViec} onClose={() => setThemViec(null)} />}
     </div>

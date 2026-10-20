@@ -49,6 +49,7 @@ function timNguoiDung(dinhDanh) {
   return NGUOI_DUNG.find(
     (u) =>
       u.email.toLowerCase() === key ||
+      u.emailPhu?.some((e) => e.toLowerCase() === key) ||
       u.username.toLowerCase() === key ||
       u.sdt === dinhDanh.trim(),
   )

@@ -176,3 +176,47 @@ export function lichSuMua(maKH) {
 }
 
 export const tienVN = (n) => (n || 0).toLocaleString('vi-VN') + 'đ'
+
+// ============================================================
+//  CÔNG NỢ & THANH TOÁN cho màn Báo cáo (nguồn chuẩn: hoá đơn KiotViet)
+// ============================================================
+
+// Hoá đơn còn nợ (tổng − đã trả > 0) → cùng dạng dòng báo cáo Sheet; null nếu máy chưa mở KiotViet
+export function hoaDonConNo() {
+  if (!_duLieu) return null
+  return _duLieu.hoaDon
+    .map((h) => ({
+      thoiGian: Date.parse(h.ngay),
+      khach: h.khach,
+      sdt: '',
+      maKH: h.maKH,
+      maDon: h.ma,
+      congNo: Math.max(0, (h.tong || 0) - (h.daTra || 0)),
+      nhanVien: h.nv,
+    }))
+    .filter((r) => r.congNo > 0 && Number.isFinite(r.thoiGian))
+}
+
+// Tổng dư nợ hiện tại của mọi khách (theo sổ KiotViet)
+export function tongDuNoKhach() {
+  if (!_duLieu) return null
+  return _duLieu.khach.reduce((s, c) => s + Math.max(0, c.no || 0), 0)
+}
+
+// Tiền thu theo phương thức trong [tu, den) — cần bản đồng bộ có thanh toán (h.ttoan); chưa có → null
+// h.ttoan: [[phương thức KiotViet, số tiền], ...] vd [['Cash', 500000], ['Transfer', 1200000]]
+// (h.tt là trạng thái hoá đơn dạng chuỗi — không nhầm)
+export function thanhToanHoaDon(tu, den, nhanVien) {
+  if (!_duLieu?.hoaDon.some((h) => Array.isArray(h.ttoan))) return null
+  const kq = { tienMat: 0, chuyenKhoan: 0, khac: 0 }
+  for (const h of _duLieu.hoaDon) {
+    const t = Date.parse(h.ngay)
+    if (!(t >= tu && t < den) || !Array.isArray(h.ttoan)) continue
+    if (nhanVien && (h.nv || '').toLowerCase() !== nhanVien.toLowerCase()) continue
+    for (const [pt, tien] of h.ttoan) {
+      const k = /cash/i.test(pt) ? 'tienMat' : /transfer/i.test(pt) ? 'chuyenKhoan' : 'khac'
+      kq[k] += tien || 0
+    }
+  }
+  return kq
+}

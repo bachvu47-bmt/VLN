@@ -10,7 +10,8 @@ function chonMime() {
 
 // Ghi âm kiểu "giữ để nói" (Zalo/Messenger): batDau() khi nhấn, ketThuc() khi thả tay.
 // ketThuc(huy) trả về Blob (null nếu huỷ / nói quá ngắn).
-export function useGhiAm() {
+// toiDaGiay: chat 60s; dạy Maika bằng giọng nói cho phép dài hơn (vd 5 phút)
+export function useGhiAm(toiDaGiay = TOI_DA_GIAY) {
   const [dangGhi, setDangGhi] = useState(false)
   const [giay, setGiay] = useState(0)
   const ref = useRef({ rec: null, stream: null, chunks: [], batDauLuc: 0, timer: null, xong: null })
@@ -42,7 +43,7 @@ export function useGhiAm() {
     r.timer = setInterval(() => {
       const s = Math.floor((Date.now() - r.batDauLuc) / 1000)
       setGiay(s)
-      if (s >= TOI_DA_GIAY) r.xong?.() // quá 60s → tự dừng & gửi
+      if (s >= toiDaGiay) r.xong?.() // chạm giới hạn → tự dừng & gửi
     }, 250)
   }
 

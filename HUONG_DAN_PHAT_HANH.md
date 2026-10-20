@@ -12,7 +12,7 @@ Tất cả được đính vào **GitHub Release** của tag đó. App sẽ tự
 
 1. **Cài Git** (máy hiện chưa có):
    - Tải: https://git-scm.com/download/win — hoặc dùng **GitHub Desktop**: https://desktop.github.com
-2. **Tạo repo trên GitHub** (vd `khoianh-home/vatlieunha-sales`).
+2. **Tạo repo trên GitHub** (vd `bachvu47-bmt/VLN` — repo hiện tại của Vật Liệu Nhà).
 3. **Đồng bộ `owner/repo`** cho đúng repo thật ở 2 nơi:
    - `src/data/appInfo.js` → `GITHUB_REPO = { owner, repo }`
    - `package.json` → `build.publish[0].owner` / `repo`

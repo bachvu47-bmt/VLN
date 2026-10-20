@@ -10,11 +10,14 @@ export const VAI_TRO = {
   thukho: { ma: 'thukho', ten: 'Thủ kho', mau: 'bg-amber-600' },
 }
 
+// tenTrenSheet (tuỳ chọn): tên nhân viên ghi trên Google Sheet báo cáo nếu khác hoTen —
+// job follow-up tự động dùng để giao nhắc báo giá cho đúng sales phụ trách.
 export const NGUOI_DUNG = [
   {
     id: 'u1',
     hoTen: 'Vũ Bạch Khoa',
     email: 'khoa.vb@vatlieunha.vn',
+    emailPhu: ['bachvu47@gmail.com'], // đăng nhập bằng Gmail Admin — duyệt tri thức (Pending Cards)
     username: 'khoavb',
     sdt: '0909123456',
     matKhau: '123456',
@@ -326,15 +329,7 @@ export const SAN_PHAM = [
   },
 ]
 
-// Sản phẩm tra cứu gần đây (Home) — tham chiếu theo mã
-export const SP_GAN_DAY = ['SIKA-LTX-TH', 'INSEE-PCB40', 'JOTUN-JOTASHIELD', 'BINHMINH-PIPE']
-
-// ---------- VIỆC CẦN LÀM HÔM NAY (Home) ----------
-export const VIEC_HOM_NAY = [
-  { id: 'v1', loai: 'goi', tieuDe: 'Gọi lại khách báo giá', phu: 'Chị Lê Thị Mai (Dữ liệu minh họa)', gio: '10:00' },
-  { id: 'v2', loai: 'taolieu', tieuDe: 'Gửi tài liệu thi công', phu: 'Anh Phạm Quốc Dũng (Dữ liệu minh họa)', gio: '11:30' },
-  { id: 'v3', loai: 'hen', tieuDe: 'Hẹn gặp tại công trình', phu: 'Công trình Quận 7 (Dữ liệu minh họa)', gio: '14:00' },
-]
+// Sản phẩm tra cứu gần đây & Việc cần làm hôm nay: dữ liệu thật — xem data/ganDayStore.js, data/viecStore.js
 
 // ---------- ĐƠN HÀNG (GIẢ LẬP ĐỒNG BỘ KIOTVIET) ----------
 export const DON_HANG = [

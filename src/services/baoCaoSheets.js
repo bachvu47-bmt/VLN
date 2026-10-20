@@ -8,6 +8,7 @@
 // ============================================================
 import { idbGet, idbPut, STORE_KV } from '../data/idb'
 import { aiCoCauHinh, aiNhanh } from './maikaChatbot'
+import { layText } from './taiWeb'
 
 const ID_MAC_DINH = import.meta.env.VITE_SHEET_BAO_CAO_ID || ''
 const TAB_MAC_DINH = import.meta.env.VITE_SHEET_BAO_CAO_TAB || 'Báo cáo ngày'
@@ -18,6 +19,12 @@ const TUOI_CACHE_MS = 30 * 60 * 1000
 export const TT_BAO_GIA = 'Đã gửi báo giá - KH đang xem xét'
 const TT_CHOT = ['Hoàn thành', 'Đã lên đơn hàng']
 const TT_MO = [TT_BAO_GIA, 'Đang tư vấn']
+
+// "Chưa chốt": báo giá/tư vấn còn mở (kể cả sheet ghi tay "Chưa chốt"), không phải đã chốt/huỷ
+export function laChuaChot(tinhTrang = '') {
+  if (TT_CHOT.includes(tinhTrang)) return false
+  return TT_MO.includes(tinhTrang) || (/chưa chốt|đang xem xét|chờ (khách|kh)/i.test(tinhTrang) && !/huỷ|hủy|không mua|từ chối/i.test(tinhTrang))
+}
 
 // ---- Cấu hình nguồn ----
 export function layNguon() {
@@ -42,24 +49,7 @@ export function datNguon(linkHoacId) {
   } catch {
     /* bỏ qua */
   }
-}
-
-// ---- Tải CSV (không dính CORS trên .exe/.apk) ----
-async function layText(url) {
-  if (typeof window !== 'undefined' && window.desktop?.webFetch) {
-    const r = await window.desktop.webFetch(url)
-    if (r.status >= 400) throw new Error('HTTP ' + r.status)
-    return r.body
-  }
-  if (typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.()) {
-    const { CapacitorHttp } = await import('@capacitor/core')
-    const r = await CapacitorHttp.get({ url, responseType: 'text' })
-    if (r.status >= 400) throw new Error('HTTP ' + r.status)
-    return typeof r.data === 'string' ? r.data : String(r.data)
-  }
-  const r = await fetch(url)
-  if (!r.ok) throw new Error('HTTP ' + r.status)
-  return r.text()
+  _ram = null
 }
 
 // CSV chuẩn RFC 4180: ô có dấu phẩy / xuống dòng / "" nằm trong ngoặc kép
@@ -105,13 +95,17 @@ function docNgay(s = '') {
 const docSo = (s = '') => Number(String(s).replace(/[^\d-]/g, '')) || 0
 const gon = (s = '') => s.replace(/\s+/g, ' ').trim()
 
-// Tìm cột theo tiêu đề (chịu được khi sheet thêm/bớt/đổi thứ tự cột)
+// Tìm cột theo tiêu đề (chịu được khi sheet thêm/bớt/đổi thứ tự cột).
+// Mảng = thứ tự ưu tiên: vd sheet có cả "Số tiền nợ" và "Công nợ" → lấy "Số tiền nợ".
 const COT = {
   thoiGian: /thời gian/i,
   nhanVien: /nhân viên/i,
-  doanhThu: /doanh thu/i,
-  congNo: /công nợ/i,
-  khach: /tên khách/i,
+  doanhThu: /doanh thu|doanh số/i,
+  congNo: [/số tiền nợ/i, /công nợ/i, /tiền nợ|dư nợ/i],
+  // "Tên khách hàng" | "Khách hàng" | "Khách hàng (Cty X / Anh Hùng)" — KHÔNG khớp "Loại khách hàng"
+  khach: /^\s*(tên\s+)?khách(\s+hàng)?\s*(\(|$)/i,
+  hinhThucTT: [/hình thức.*(thanh toán|tt\b)/i, /phương thức.*thanh toán/i, /^\s*thanh toán\s*$/i, /^\s*httt\s*$/i],
+  maDon: /mã\s*(đơn|hđ|hoá đơn|hóa đơn)|số\s*(hđ|hoá đơn|hóa đơn)/i,
   loaiKH: /loại khách/i,
   doiTuong: /đối tượng/i,
   sdt: /điện thoại/i,
@@ -125,9 +119,28 @@ const COT = {
   lienHe: /liên hệ gần nhất/i,
 }
 
+function viTriCot(tieuDe, mau) {
+  for (const re of [mau].flat()) {
+    const i = tieuDe.findIndex((h) => re.test(h))
+    if (i >= 0) return i
+  }
+  return -1
+}
+
+// Hình thức thanh toán (ô tự do) → nhóm chuẩn để cộng tiền
+export const NHOM_TT = { tienMat: 'Tiền mặt', chuyenKhoan: 'Chuyển khoản', no: 'Ghi nợ', khac: 'Khác', chuaGhi: 'Chưa ghi' }
+export function phanLoaiTT(s = '') {
+  const t = s.toLowerCase()
+  if (!t.trim()) return 'chuaGhi'
+  if (/tiền mặt|tien mat|\btm\b|cash/.test(t)) return 'tienMat'
+  if (/chuyển khoản|chuyen khoan|\bck\b|banking|ngân hàng|\bqr\b|stk/.test(t)) return 'chuyenKhoan'
+  if (/nợ|công nợ|ghi sổ|trả sau/.test(t)) return 'no'
+  return 'khac'
+}
+
 export function chuanHoa(bang) {
   const [tieuDe, ...dong] = bang
-  const vt = Object.fromEntries(Object.entries(COT).map(([k, re]) => [k, tieuDe.findIndex((h) => re.test(h))]))
+  const vt = Object.fromEntries(Object.entries(COT).map(([k, mau]) => [k, viTriCot(tieuDe, mau)]))
   const lay = (r, k) => (vt[k] >= 0 ? gon(r[vt[k]] || '') : '')
   return dong
     .map((r) => {
@@ -150,25 +163,35 @@ export function chuanHoa(bang) {
         chiTiet: lay(r, 'chiTiet'),
         tinhTrang: lay(r, 'tinhTrang') || '(chưa ghi)',
         lyDo: lay(r, 'lyDo'),
+        hinhThucTT: lay(r, 'hinhThucTT'),
+        nhomTT: phanLoaiTT(lay(r, 'hinhThucTT')),
+        maDon: lay(r, 'maDon'),
       }
     })
     .filter((r) => Number.isFinite(r.thoiGian) && (r.khach || r.sanPham || r.doanhThu))
 }
 
 // ---- Tải + cache (IndexedDB) ----
+// Đổi khi cấu trúc dòng đã chuẩn hoá thay đổi → bỏ bản lưu cũ (vd v2: thêm hinhThucTT, maDon)
+const PHIEN_BAN_DONG = 2
+// Bản trong RAM: mở màn Báo cáo / hỏi Maika lần 2 không phải đọc IndexedDB + dựng lại 1.000+ dòng
+let _ram = null
+
 export async function layBaoCaoCache() {
+  if (_ram) return _ram
   try {
-    return (await idbGet(STORE_KV, KEY_CACHE)) || null
+    const c = (await idbGet(STORE_KV, KEY_CACHE)) || null
+    return c?.pb === PHIEN_BAN_DONG ? (_ram = c) : null
   } catch {
     return null
   }
 }
 
-export async function taiBaoCao({ batBuoc = false } = {}) {
+export async function taiBaoCao({ batBuoc = false, tuoiToiDa = TUOI_CACHE_MS } = {}) {
   const { id, tab } = layNguon()
   if (!id) throw new Error('Chưa cấu hình Google Sheet báo cáo')
   const cache = await layBaoCaoCache()
-  if (!batBuoc && cache?.id === id && Date.now() - cache.luc < TUOI_CACHE_MS) return cache
+  if (!batBuoc && cache?.id === id && Date.now() - cache.luc < tuoiToiDa) return cache
   const url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`
   let text
   try {
@@ -180,7 +203,8 @@ export async function taiBaoCao({ batBuoc = false } = {}) {
   if (/^\s*<!DOCTYPE|<html/i.test(text)) throw new Error('Sheet chưa chia sẻ công khai — đặt "Bất kỳ ai có link · Người xem".')
   const rows = chuanHoa(docCSV(text))
   if (!rows.length) throw new Error('Sheet không có dữ liệu hợp lệ (kiểm tra tên tab "' + tab + '")')
-  const ketQua = { id, luc: Date.now(), rows }
+  const ketQua = { id, luc: Date.now(), rows, pb: PHIEN_BAN_DONG }
+  _ram = ketQua
   try {
     await idbPut(STORE_KV, ketQua, KEY_CACHE)
   } catch {
@@ -233,7 +257,55 @@ export function tongHop(rows) {
     soKhachChot: chot,
     tyLeChot: dsCuoi.length ? chot / dsCuoi.length : 0,
     soBaoGiaCho: dsCuoi.filter((r) => r.tinhTrang === TT_BAO_GIA).length,
+    ...theoThanhToan(rows),
   }
+}
+
+// Doanh thu tách theo hình thức thanh toán. coCot=false → sheet chưa có cột "Hình thức thanh toán"
+export function theoThanhToan(rows) {
+  const kq = { tienMat: 0, chuyenKhoan: 0, no: 0, khac: 0, chuaGhi: 0 }
+  let coCot = false
+  for (const r of rows) {
+    if (!r.doanhThu) continue
+    const nhom = r.nhomTT || 'chuaGhi'
+    kq[nhom] += r.doanhThu
+    if (nhom !== 'chuaGhi') coCot = true
+  }
+  return { thanhToan: kq, coCotTT: coCot }
+}
+
+// Ngày gần nhất (trong các dòng) có phát sinh doanh thu / công nợ → "Doanh số ngày", "Công nợ ngày"
+export function ngayGanNhat(rows, truong = 'doanhThu') {
+  const t = rows.filter((r) => r[truong] > 0).reduce((m, r) => Math.max(m, r.thoiGian), 0)
+  return t ? dauNgay(t) : 0
+}
+
+export function tongTrongNgay(rows, ngay, truong) {
+  return rows.filter((r) => r.thoiGian >= ngay && r.thoiGian < ngay + 864e5).reduce((s, r) => s + r[truong], 0)
+}
+
+// Dòng phát sinh doanh thu (bảng "Chi tiết doanh số") — mới nhất trước
+export function chiTietDoanhSo(rows) {
+  return rows.filter((r) => r.doanhThu > 0).sort((a, b) => b.thoiGian - a.thoiGian)
+}
+
+// Dòng phát sinh công nợ (bảng "Chi tiết công nợ") — mới nhất trước
+export function chiTietCongNo(rows) {
+  return rows.filter((r) => r.congNo > 0).sort((a, b) => b.thoiGian - a.thoiGian)
+}
+
+// Người nợ nhiều nhất: gom theo khách (SĐT hoặc tên) → [{ ten, soTien, soDon }]
+export function topNguoiNo(rows, n = 5) {
+  const m = new Map()
+  for (const r of rows) {
+    if (!(r.congNo > 0)) continue
+    const k = khoaKhach(r) || '(không tên)'
+    const g = m.get(k) || { ten: r.khach || r.sdt || '(không tên)', soTien: 0, soDon: 0 }
+    g.soTien += r.congNo
+    g.soDon++
+    m.set(k, g)
+  }
+  return [...m.values()].sort((a, b) => b.soTien - a.soTien).slice(0, n)
 }
 
 // Gom theo 1 trường → [{ nhan, giaTri }] (chiSo: 'doanhThu' | 'soLuot' | 'soKhach')
@@ -320,7 +392,7 @@ export const vndDay = (n) => n.toLocaleString('vi-VN') + 'đ'
 // ============================================================
 //  HỎI ĐÁP TỰ NHIÊN — AI hiểu câu hỏi → bộ lọc; code tính số liệu
 // ============================================================
-const MAU_CAU_BAO_CAO = /(doanh thu|doanh số|bán được|báo cáo|công nợ|tỷ lệ chốt|chốt (được|đơn)|top sản phẩm|bán chạy|hỏi nhiều|bao nhiêu (khách|đơn|lượt)|kênh nào|nhân viên nào|thống kê|báo giá (nào|chưa|đang)|cần follow|chưa follow)/i
+const MAU_CAU_BAO_CAO = /(doanh thu|doanh số|bán được|báo cáo|công nợ|người nợ|ai (đang )?nợ|còn nợ|số tiền nợ|tiền mặt|chuyển khoản|thanh toán|tỷ lệ chốt|chốt (được|đơn)|top sản phẩm|bán chạy|hỏi nhiều|bao nhiêu (khách|đơn|lượt)|kênh nào|nhân viên nào|thống kê|báo giá (nào|chưa|đang)|cần follow|chưa follow)/i
 
 export function laCauBaoCao(text = '') {
   return MAU_CAU_BAO_CAO.test(text)
@@ -332,16 +404,27 @@ function moTaHomNay() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} (thứ ${d.getDay() === 0 ? 'CN' : d.getDay() + 1})`
 }
 
+// Cache "câu hỏi → bộ lọc" trong ngày: hỏi lại câu cũ không tốn lượt AI, trả lời < 1s
+// (số liệu vẫn tính lại từ dữ liệu sheet mới nhất)
+const _cacheBoLoc = new Map()
+
 export async function hoiBaoCao(cauHoi) {
   if (!aiCoCauHinh()) throw new Error('Chưa cấu hình AI')
   const { rows } = await taiBaoCao()
-  const nvs = danhSachNhanVien(rows)
-  const moiNhat = new Date(Math.max(...rows.map((r) => r.thoiGian))).toLocaleDateString('vi-VN')
-  const sys = `Chuyển câu hỏi về báo cáo bán hàng thành bộ lọc JSON. Hôm nay: ${moTaHomNay()}. Dữ liệu có đến ${moiNhat}. Nhân viên: ${nvs.join(', ')}.
-Trả về DUY NHẤT JSON: {"loai":"tong|theoThoiGian|theoNhanVien|theoKenh|theoTinhTrang|topSanPham|followUp","tu":"YYYY-MM-DD hoặc ''","den":"YYYY-MM-DD (không gồm ngày này) hoặc ''","nhanVien":"tên đúng trong danh sách hoặc ''","khach":"tên/SĐT khách hoặc ''","chiSo":"doanhThu|soLuot|soKhach","buoc":"ngay|tuan|thang hoặc '' (khi hỏi theo ngày/tuần/tháng → loai theoThoiGian)"}
-"tuần này"=thứ 2 tuần này→mai; "tháng này"=ngày 1→mai; "tháng 9"=2026-09-01→2026-10-01; không nói thời gian → tu='' den=''. "bao nhiêu khách"→chiSo soKhach; "bao nhiêu lượt/đơn"→soLuot; mặc định doanhThu. Hỏi báo giá chưa chốt/cần follow-up → followUp.`
-  const raw = await aiNhanh(sys, cauHoi, { json: true })
-  const q = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1))
+  // Có id sheet trong khoá: đổi sheet giữa ngày thì bộ lọc (tên nhân viên...) của sheet cũ không bị dùng lại
+  const khoa = `${layNguon().id}|${dauNgay(Date.now())}|${cauHoi.toLowerCase().replace(/[?.!\s]+/g, ' ').trim()}`
+  let q = _cacheBoLoc.get(khoa)
+  if (!q) {
+    const nvs = danhSachNhanVien(rows)
+    const moiNhat = new Date(Math.max(...rows.map((r) => r.thoiGian))).toLocaleDateString('vi-VN')
+    const sys = `Chuyển câu hỏi về báo cáo bán hàng thành bộ lọc JSON. Hôm nay: ${moTaHomNay()}. Dữ liệu có đến ${moiNhat}. Nhân viên: ${nvs.join(', ')}.
+Trả về DUY NHẤT JSON: {"loai":"tong|theoThoiGian|theoNhanVien|theoKenh|theoTinhTrang|topSanPham|followUp|congNo|thanhToan","tu":"YYYY-MM-DD hoặc ''","den":"YYYY-MM-DD (không gồm ngày này) hoặc ''","nhanVien":"tên đúng trong danh sách hoặc ''","khach":"tên/SĐT khách hoặc ''","chiSo":"doanhThu|soLuot|soKhach","buoc":"ngay|tuan|thang hoặc '' (khi hỏi theo ngày/tuần/tháng → loai theoThoiGian)"}
+"hôm nay"=hôm nay→mai; "tuần này"=thứ 2 tuần này→mai; "tháng này"=ngày 1→mai; "tháng 9"=2026-09-01→2026-10-01; không nói thời gian → tu='' den=''. "bao nhiêu khách"→chiSo soKhach; "bao nhiêu lượt/đơn"→soLuot; mặc định doanhThu. Hỏi báo giá chưa chốt/cần follow-up → followUp. Hỏi công nợ / ai đang nợ / số tiền nợ → congNo. Hỏi tiền mặt / chuyển khoản / hình thức thanh toán → thanhToan.`
+    const raw = await aiNhanh(sys, cauHoi, { json: true })
+    q = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1))
+    if (_cacheBoLoc.size > 200) _cacheBoLoc.clear()
+    _cacheBoLoc.set(khoa, q)
+  }
   return traLoiBaoCao(rows, q)
 }
 
@@ -388,6 +471,27 @@ export function traLoiBaoCao(rows, q) {
     case 'topSanPham': {
       const diem = topSanPham(ds)
       return { text: `${dongTong}\n\nSản phẩm khách hỏi nhiều nhất:\n${diem.slice(0, 6).map((d, i) => `${i + 1}. ${d.nhan} — ${d.giaTri} lượt`).join('\n')}`, bieuDo: { kieu: 'ngang', tieuDe: 'Sản phẩm khách quan tâm (lượt hỏi)', diem, donVi: 'so' } }
+    }
+    case 'congNo': {
+      const no = chiTietCongNo(ds)
+      const tatCa = topNguoiNo(ds, Infinity)
+      const top = tatCa.slice(0, 6)
+      const tong = no.reduce((s, r) => s + r.congNo, 0)
+      return {
+        text: no.length
+          ? `💳 Công nợ ${kh}: ${vndDay(tong)} (${no.length} đơn, ${tatCa.length} khách)\nNgười nợ nhiều nhất:\n${top.map((g) => `• ${g.ten}: ${vndDay(g.soTien)}${g.soDon > 1 ? ` (${g.soDon} đơn)` : ''}`).join('\n')}`
+          : `✅ Không phát sinh công nợ trong khoảng ${kh}.`,
+        bieuDo: top.length ? { kieu: 'ngang', tieuDe: 'Công nợ theo khách', diem: top.map((g) => ({ nhan: g.ten, giaTri: g.soTien })), donVi: 'vnd' } : undefined,
+      }
+    }
+    case 'thanhToan': {
+      const { thanhToan: tt, coCotTT } = th
+      if (!coCotTT) return { text: `${dongTong}\n\n⚠️ Sheet chưa có cột "Hình thức thanh toán" nên chưa tách được tiền mặt / chuyển khoản.` }
+      const diem = Object.entries(tt).filter(([, v]) => v > 0).map(([k, v]) => ({ nhan: NHOM_TT[k], giaTri: v }))
+      return {
+        text: `💵 Doanh thu ${kh} theo hình thức thanh toán:\n${diem.map((d) => `• ${d.nhan}: ${vndDay(d.giaTri)}`).join('\n')}`,
+        bieuDo: { kieu: 'ngang', tieuDe: 'Doanh thu theo hình thức thanh toán', diem, donVi: 'vnd' },
+      }
     }
     case 'followUp': {
       const dsFU = canFollowUp(rows, { soNgay: 3, nhanVien: q.nhanVien || undefined })

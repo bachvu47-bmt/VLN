@@ -37,4 +37,13 @@
     <!-- "Giữ để nói" gửi âm thoại cho Maika (WebView getUserMedia → Capacitor xin quyền lúc chạy) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- Chụp ảnh hiện trường gửi Maika (input capture="environment" → WebView mở camera) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Đọc ảnh từ thư viện: Android 13+ dùng READ_MEDIA_IMAGES, Android ≤ 12 dùng READ_EXTERNAL_STORAGE -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <!-- Nhắc việc follow-up đúng giờ kể cả khi tắt app (@capacitor/local-notifications) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

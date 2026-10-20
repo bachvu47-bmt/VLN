@@ -40,3 +40,9 @@ signing/
 
 # Capacitor
 .capacitor/
+
+# Supabase CLI (file tạm khi deploy hàm)
+supabase/.temp/
+
+# Ảnh ý tưởng/tầm nhìn của chủ dự án — không đưa lên repo công khai
+Picture/

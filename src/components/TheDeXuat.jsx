@@ -83,7 +83,12 @@ export default function TheDeXuat({ r }) {
         </div>
         <h3 className="text-sm font-black text-gray-900">{r.tuDong ? '📘' : '❓'} {r.cauHoi}</h3>
         {r.tuDong && r.nguon && (
-          <a href={r.nguon} target="_blank" rel="noreferrer" className="mt-0.5 block truncate text-[11px] text-brand-600 underline">{r.nguon}</a>
+          <div className="mt-1.5 rounded-lg bg-emerald-50/60 px-2.5 py-1.5 text-[11px] text-gray-600">
+            <div><span className="font-bold text-emerald-700">🌐 Nguồn public:</span> {r.nguonTen} · {(() => { try { return new URL(r.nguon).hostname } catch { return '' } })()}</div>
+            <div>Cào lúc {new Date(r.taoLuc).toLocaleString('vi-VN')} · {r.capNhatNguon ? 'trang đã đổi nội dung' : 'trang mới'} · tin cậy {r.doTinCay}%</div>
+            <a href={r.nguon} target="_blank" rel="noreferrer" className="block truncate text-brand-600 underline">{r.nguon}</a>
+            <div className="text-[10px] text-gray-400">🔒 Không chứa dữ liệu nội bộ (KiotViet, báo cáo bán hàng)</div>
+          </div>
         )}
       </div>
 

@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useToast } from '../context/ToastContext'
+import { ghiSpGanDay } from '../data/ganDayStore'
 
 function Ico({ d, className = 'h-5 w-5' }) {
   return (
@@ -39,6 +40,7 @@ export default function ProductDetailScreen({ sp, onClose }) {
   const [tab, setTab] = useState('Tổng quan')
   const [size, setSize] = useState(sp.quyCachMacDinh)
   const toast = useToast()
+  useEffect(() => ghiSpGanDay(sp), [sp]) // → "Sản phẩm tra cứu gần đây" ở màn Hôm nay
 
   return (
     <div className="fixed inset-0 z-50 mx-auto flex max-w-md flex-col bg-white">

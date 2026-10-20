@@ -19,6 +19,7 @@ import { idbDeleteMany, idbGet, idbGetAll, idbPut, idbPutMany, STORE_KV, STORE_T
 import { geminiCoCauHinh, nhungVector } from './maikaChatbot'
 import { xoaMedia } from '../data/mediaStore'
 import * as kho from './khoChung'
+import { doanTuSanPham } from './sanPhamWeb'
 
 const CHUNG = kho.coKhoChung()
 const KEY_MOC = 'vln_kho_chung_moc'
@@ -75,6 +76,18 @@ export function thongKe() {
   return tk
 }
 
+// Dấu phiên bản tri thức đã duyệt — đổi khi thêm/xoá/duyệt mẩu (không đổi khi chỉ học vector/kéo đồng bộ)
+export function phienBanTriThuc() {
+  let n = 0
+  let moiNhat = 0
+  for (const r of cache.values()) {
+    if (r.trangThai !== 'da_duyet') continue
+    n++
+    moiNhat = Math.max(moiNhat, r.duyetLuc || 0, r.taoLuc || 0)
+  }
+  return `${n}:${moiNhat}`
+}
+
 // Danh sách (mới nhất trước) — lọc theo loai / trangThai
 export function danhSach({ loai, trangThai } = {}) {
   return [...cache.values()]
@@ -86,11 +99,6 @@ function maMoi(tienTo) {
   return `${tienTo}:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`
 }
 
-function bam(s = '') {
-  let h = 5381
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0
-  return (h >>> 0).toString(36)
-}
 
 async function luuCucBo(recs) {
   recs.forEach((r) => cache.set(r.id, r))
@@ -350,48 +358,7 @@ export async function xoaTriThuc(id) {
 // ============================================================
 //  ĐỒNG BỘ TRI THỨC TỪ WEBSITE (sản phẩm → các đoạn tri thức)
 // ============================================================
-const DO_DAI_DOAN = 1200
-const SO_DOAN_TOI_DA = 3 // mỗi SP tối đa 3 đoạn — cân bằng độ phủ & quota embedding free
-
-function chiaDoan(text, doDai) {
-  const cau = text.split(/(?<=[.!?;])\s+/)
-  const doan = []
-  let hienTai = ''
-  for (const c of cau) {
-    if ((hienTai + ' ' + c).length > doDai && hienTai) {
-      doan.push(hienTai.trim())
-      hienTai = ''
-    }
-    hienTai += ' ' + c
-  }
-  if (hienTai.trim()) doan.push(hienTai.trim())
-  return doan
-}
-
-function doanTuSanPham(sp) {
-  const dau = [
-    `${sp.ten} — thương hiệu ${sp.hang}.`,
-    sp.nhom && `Danh mục: ${sp.nhom}.`,
-    sp.quyCach?.length && `Quy cách: ${sp.quyCach.join(', ')}.`,
-    sp.dinhMuc?.giaTri && `Định mức: ${sp.dinhMuc.giaTri} ${sp.dinhMuc.donVi}.`,
-    sp.tenNgan,
-  ]
-    .filter(Boolean)
-    .join(' ')
-  const moTa = sp.moTa && sp.moTa !== sp.tenNgan ? sp.moTa : ''
-  const phan = moTa ? chiaDoan(moTa, DO_DAI_DOAN) : []
-  const doan = [`${dau}\n${(phan.shift() || '').slice(0, DO_DAI_DOAN)}`.trim(), ...phan].slice(0, SO_DOAN_TOI_DA)
-  return doan.map((noiDung, i) => ({
-    id: `web:${sp.id}:${i}`,
-    loai: 'web',
-    trangThai: 'da_duyet',
-    tieuDe: i === 0 ? sp.ten : `${sp.ten} (phần ${i + 1})`,
-    noiDung,
-    spId: sp.id,
-    nguon: sp.url,
-    hash: bam(noiDung),
-  }))
-}
+// doanTuSanPham (Flashcard → đoạn tri thức): xem sanPhamWeb.js — dùng chung với scripts/nap-kho-chung.mjs
 
 // Upsert: chỉ ghi đoạn mới/thay đổi (giữ vector cũ nếu nội dung y nguyên),
 // xoá đoạn của SP không còn trên website. Trả về số đoạn cần học mới.
@@ -503,6 +470,16 @@ function tachTu(s) {
 // càng ít trọng số. Tính lại khi kho thay đổi.
 let _df = null
 let _soVanBan = 0
+// Chỉ mục từ khoá: id → tập từ đã tách (trước đây tách lại ~2.000 mẩu ở MỖI câu hỏi)
+const _chiMuc = new Map()
+function tapTu(r) {
+  let t = _chiMuc.get(r.id)
+  if (!t) {
+    t = new Set(tachTu(`${r.tieuDe} ${r.noiDung}`))
+    _chiMuc.set(r.id, t)
+  }
+  return t
+}
 function bangDf() {
   if (_df) return _df
   _df = new Map()
@@ -510,12 +487,13 @@ function bangDf() {
   for (const r of cache.values()) {
     if (r.trangThai !== 'da_duyet') continue
     _soVanBan++
-    for (const w of new Set(tachTu(`${r.tieuDe} ${r.noiDung}`))) _df.set(w, (_df.get(w) || 0) + 1)
+    for (const w of tapTu(r)) _df.set(w, (_df.get(w) || 0) + 1)
   }
   return _df
 }
 dangKyTheoDoi(() => {
   _df = null
+  _chiMuc.clear()
 })
 
 const idf = (w) => Math.log(1 + _soVanBan / (1 + (bangDf().get(w) || 0)))
@@ -524,7 +502,7 @@ const idf = (w) => Math.log(1 + _soVanBan / (1 + (bangDf().get(w) || 0)))
 function diemTuKhoa(tuHoi, r) {
   if (!tuHoi.length) return 0
   bangDf()
-  const tap = new Set(tachTu(`${r.tieuDe} ${r.noiDung}`))
+  const tap = tapTu(r)
   let trung = 0
   let tong = 0
   for (const w of tuHoi) {
@@ -548,6 +526,20 @@ const THUONG_SUA_SAI = 0.08 // ưu tiên đính chính của Admin
 
 const rutGon = ({ r, d }) => ({ id: r.id, loai: r.loai, tieuDe: r.tieuDe, noiDung: r.noiDung, nguon: r.nguon, spId: r.spId, diem: d })
 
+// Cache vector câu hỏi (câu lặp lại / gợi ý nhanh không tốn thêm 1 lượt embedding)
+const _vecHoi = new Map()
+const TOI_DA_VEC_HOI = 200
+const TIMEOUT_VEC_HOI_MS = 4000 // embedding chậm → bỏ, dùng từ khoá để giữ phản hồi < 10s
+async function vectorCauHoi(cauHoi) {
+  // Giữ dấu: "bàn"/"bán", "ca"/"cá" là câu hỏi khác nhau → không dùng chung vector
+  const khoa = cauHoi.toLowerCase().normalize('NFC').replace(/\s+/g, ' ').trim()
+  if (_vecHoi.has(khoa)) return _vecHoi.get(khoa)
+  const [v] = await nhungVector([cauHoi], 'RETRIEVAL_QUERY', { timeoutMs: TIMEOUT_VEC_HOI_MS })
+  if (_vecHoi.size >= TOI_DA_VEC_HOI) _vecHoi.delete(_vecHoi.keys().next().value)
+  _vecHoi.set(khoa, v)
+  return v
+}
+
 export async function truyXuat(cauHoi, { k = 6, dungVector = true } = {}) {
   await sanSang
   const daDuyet = [...cache.values()].filter((r) => r.trangThai === 'da_duyet')
@@ -557,7 +549,7 @@ export async function truyXuat(cauHoi, { k = 6, dungVector = true } = {}) {
   let vecHoi = null
   if (dungVector && geminiCoCauHinh() && (CHUNG || daDuyet.some((r) => r.vec))) {
     try {
-      ;[vecHoi] = await nhungVector([cauHoi], 'RETRIEVAL_QUERY')
+      vecHoi = await vectorCauHoi(cauHoi)
     } catch (e) {
       console.warn('[Bộ nhớ Maika] Truy xuất vector lỗi → dùng từ khoá:', e.message)
     }

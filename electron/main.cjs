@@ -78,7 +78,11 @@ function dangKyAutoUpdate(win) {
   // Renderer gọi: fetch URL qua main process (Node) — không dính CORS.
   // Dùng để đồng bộ sản phẩm từ vatlieunha.vn trên bản .exe.
   ipcMain.handle('web:fetch', async (_e, url) => {
-    const r = await fetch(url, { headers: { Accept: 'application/json' } })
+    // Nhận cả JSON (API sản phẩm) lẫn HTML (Cổng dạy Maika dán link bài viết); 20s không phản hồi → bỏ
+    const r = await fetch(url, {
+      headers: { Accept: 'application/json, text/html;q=0.9, */*;q=0.8' },
+      signal: AbortSignal.timeout(20000),
+    })
     return { status: r.status, body: await r.text() }
   })
 

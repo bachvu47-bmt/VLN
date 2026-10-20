@@ -1,7 +1,8 @@
 // ============================================================
 //  KHO VIỆC CẦN LÀM — nền của Trợ lý chủ động (Maika 2.0 · Bước 2)
 //  Viec: { id, loai, tieuDe, khach, sdt, sanPham, ghiChu, hanLuc (ms), trangThai: 'cho'|'xong',
-//          daNhac, nguon: 'tay'|'maika'|'baogia'|'donhang', nguoiTao (user id), taoLuc, xongLuc }
+//          daNhac, nguon: 'tay'|'maika'|'baogia'|'donhang'|'sheet', khoaNguon?, nguoiTao (user id), taoLuc, xongLuc }
+//  nguon 'sheet': job follow-up tự động tạo từ Google Sheet báo cáo (services/followUpTuDong.js)
 //  Lưu IndexedDB (KV) + cache RAM để đọc đồng bộ như productStore.
 // ============================================================
 import { idbGet, idbPut, STORE_KV } from './idb'

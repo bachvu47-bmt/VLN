@@ -3,19 +3,28 @@ import ScreenShell from '../components/ScreenShell'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { useBoNhoMaika } from '../hooks/useBoNhoMaika'
-import { docFileBase64, geminiCoCauHinh, GIOI_HAN_FILE_MB, phanTichTaiLieu } from '../services/maikaChatbot'
+import { aiCoCauHinh, chuyenGiongNoi, docFileBase64, geminiCoCauHinh, GIOI_HAN_FILE_MB, GIOI_HAN_TAI_LEN_MB, phanTichLink, phanTichTaiLieu, taiLenGemini } from '../services/maikaChatbot'
+import { useGhiAm } from '../hooks/useGhiAm'
 import { cheDoLuuTru, danhSach, hocNen, napTaiLieu, xoaTriThuc } from '../services/vectorStore'
 import { layPinAdmin } from '../services/khoChung'
 import { luuMedia } from '../data/mediaStore'
 import TheDeXuat from '../components/TheDeXuat'
 import { dongBoVaHoc } from '../services/webSyncService'
 
+const MB = 1024 * 1024
+const TOI_DA_NOI_GIAY = 300 // dạy bằng giọng nói: tối đa 5 phút/lần ghi
+const GIOI_HAN_LUU_MEDIA_MB = 20 // tệp lớn hơn (video dài) không lưu bản gốc vào máy — chỉ lưu tri thức
+
 const LOAI = [
-  { id: 'anh', nhan: 'Tải ảnh', meta: 'JPG, PNG', icon: '🖼️', accept: 'image/*' },
-  { id: 'video', nhan: 'Tải video', meta: 'MP4, MOV', icon: '🎬', accept: 'video/*' },
-  { id: 'pdf', nhan: 'Tải PDF', meta: 'TDS, catalogue', icon: '📄', accept: 'application/pdf' },
-  { id: 'audio', nhan: 'Ghi âm', meta: 'MP3, M4A', icon: '🎙️', accept: 'audio/*' },
+  { id: 'chu', nhan: 'Gõ chữ', meta: 'Ghi chú nhanh', icon: '✍️' },
+  { id: 'noi', nhan: 'Nói', meta: 'Như tin nhắn thoại', icon: '🎤' },
+  { id: 'link', nhan: 'Dán link', meta: 'Web, YouTube', icon: '🔗' },
+  { id: 'anh', nhan: 'Ảnh / Video', meta: 'Bao bì, TDS, công trình', icon: '🖼️', accept: 'image/*,video/*' },
+  { id: 'pdf', nhan: 'PDF', meta: 'TDS, catalogue', icon: '📄', accept: 'application/pdf' },
+  { id: 'audio', nhan: 'File ghi âm', meta: 'Zalo, M4A, MP3', icon: '🎧', accept: 'audio/*,.m4a,.aac,.amr,.mp3,.ogg,.opus,.wav' },
 ]
+
+const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
 const NHAN_LOAI = { sua_sai: '✏️ Đính chính', tai_lieu: '📄 Tài liệu' }
 
@@ -144,64 +153,145 @@ function DaHoc() {
 export default function IngestionScreen({ onClose }) {
   const { user } = useAuth()
   const toast = useToast()
-  const [loai, setLoai] = useState('pdf')
+  const [loai, setLoai] = useState('chu')
   const [file, setFile] = useState(null)
   const [noiDung, setNoiDung] = useState('')
   const [tt, setTt] = useState('idle') // idle | analyzing | done
+  const [tienDo, setTienDo] = useState('')
   const [kq, setKq] = useState(null)
   const [banSua, setBanSua] = useState({ tieuDe: '', noiDung: '' })
   const [dangNap, setDangNap] = useState(false)
   const [tab, setTab] = useState('nap')
+  const [banGhi, setBanGhi] = useState([]) // [{ blob, url, text }] các đoạn ghi âm / file thoại đã chép
+  const [dangChep, setDangChep] = useState(false)
+  const ghiAm = useGhiAm(TOI_DA_NOI_GIAY)
   const inputRef = useRef(null)
   useBoNhoMaika() // cập nhật số thẻ chờ duyệt
   const choDuyetMM = danhSach({ trangThai: 'cho_duyet' }).filter((r) => r.media?.length)
   const soMM = choDuyetMM.length
+  const [link, setLink] = useState('')
+  const laTep = ['anh', 'pdf'].includes(loai)
 
-  const chonFile = (e) => {
-    const f = e.target.files?.[0]
-    if (!f) return
-    if (f.size > GIOI_HAN_FILE_MB * 1024 * 1024) return toast(`Tệp quá lớn (tối đa ${GIOI_HAN_FILE_MB}MB)`, 'error')
-    setFile(f)
+  const datLai = () => {
+    setKq(null)
+    setTt('idle')
+    setFile(null)
+    setNoiDung('')
+    setBanGhi((ds) => {
+      ds.forEach((b) => URL.revokeObjectURL(b.url)) // giải phóng RAM của các đoạn thoại (tới 25MB/đoạn)
+      return []
+    })
+    setLink('')
   }
 
-  const phanTich = async () => {
+  const phanTich = async (vanBan = noiDung, { tuGiongNoi = false } = {}) => {
     if (tt === 'analyzing') return
-    if (!noiDung.trim() && !file) return toast('Nhập nội dung hoặc chọn tệp để phân tích', 'error')
-    if (!geminiCoCauHinh()) return toast('Chưa cấu hình VITE_GEMINI_API_KEY', 'error')
+    const text = vanBan.trim()
+    const tepGui = laTep ? file : null
+    const url = loai === 'link' ? link.trim() : ''
+    if (loai === 'link' && !/^https?:\/\/\S+\.\S+/i.test(url)) return toast('Dán link bắt đầu bằng http:// hoặc https://', 'error')
+    if (!text && !tepGui && !url) return toast(laTep ? 'Chọn tệp hoặc gõ ghi chú để phân tích' : 'Gõ hoặc nói nội dung cần dạy Maika', 'error')
+    if (tepGui ? !geminiCoCauHinh() : !aiCoCauHinh()) return toast(tepGui ? 'Phân tích ảnh/video/PDF cần VITE_GEMINI_API_KEY' : 'Chưa cấu hình AI', 'error')
     setTt('analyzing')
     setKq(null)
     try {
-      const tep = file ? await docFileBase64(file) : null
-      const r = await phanTichTaiLieu({ text: noiDung.trim(), file: tep })
-      setKq(r)
-      setBanSua({ tieuDe: r.tieuDe, noiDung: [r.tomTat, ...r.cacY.map((y) => '• ' + y)].join('\n') })
+      let r
+      if (url) {
+        r = await phanTichLink(url, text, setTienDo)
+      } else {
+        let tep = null
+        if (tepGui) {
+          // ≤ 14MB gửi kèm thẳng (nhanh); lớn hơn → tải lên Gemini Files API
+          tep = tepGui.size <= GIOI_HAN_FILE_MB * MB ? await docFileBase64(tepGui) : await taiLenGemini(tepGui, tepGui.name, setTienDo)
+        }
+        setTienDo(tepGui ? `Gemini đang ${tepGui.type.startsWith('video/') ? 'xem video' : 'đọc tệp'}…` : 'Maika đang hiểu & biên tập…')
+        r = await phanTichTaiLieu({ text, file: tep })
+      }
+      // Ghi nguồn ngay lúc phân tích: đổi sang cách dạy khác trước khi bấm nạp vẫn giữ đúng nguồn
+      setKq({ ...r, nguon: url || (tepGui && tepGui.name) || (tuGiongNoi || banGhi.length ? 'Giọng nói Admin' : 'Ghi chú Admin') })
+      setBanSua({ tieuDe: r.tieuDe, noiDung: [r.tomTat, ...r.cacY.map((y) => '• ' + y)].filter(Boolean).join('\n') })
       setTt('done')
     } catch (e) {
       setTt('idle')
-      toast('Phân tích lỗi: ' + (e.status === 429 ? 'Google giới hạn tần suất, thử lại sau ít phút' : e.message || e), 'error')
+      toast('Phân tích lỗi: ' + (e.status === 429 ? 'AI đang giới hạn tần suất, thử lại sau ít phút' : e.message || e), 'error')
+    } finally {
+      setTienDo('')
     }
+  }
+
+  // Giọng nói (ghi trực tiếp hoặc file thoại Zalo) → chữ → nối vào ghi chú → tự phân tích
+  const chepGiongNoi = async (blob) => {
+    setDangChep(true)
+    try {
+      const text = (await chuyenGiongNoi(blob)).trim()
+      if (!text) return toast('Không nghe rõ nội dung — thử nói gần micro hơn', 'error')
+      setBanGhi((ds) => [...ds, { blob, url: URL.createObjectURL(blob), text }])
+      const moi = noiDung.trim() ? `${noiDung.trim()}\n${text}` : text
+      setNoiDung(moi)
+      phanTich(moi, { tuGiongNoi: true })
+    } catch (e) {
+      toast('Chưa chuyển được giọng nói: ' + (e.message || e), 'error')
+    } finally {
+      setDangChep(false)
+    }
+  }
+
+  const batTatGhiAm = async () => {
+    if (ghiAm.dangGhi) {
+      const blob = await ghiAm.ketThuc(false)
+      if (blob) chepGiongNoi(blob)
+      else toast('Đoạn ghi quá ngắn', 'info')
+      return
+    }
+    try {
+      await ghiAm.batDau()
+    } catch (err) {
+      toast(err.name === 'NotAllowedError' ? 'Chưa cấp quyền micro cho ứng dụng' : 'Không bật được micro: ' + (err.message || err), 'error')
+    }
+  }
+  useEffect(() => {
+    ghiAm.khiHetGio(() => ghiAm.ketThuc(false).then((b) => b && chepGiongNoi(b))) // chạm 5 phút → tự dừng & chép
+  })
+
+  const chonFile = (e) => {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    if (loai === 'audio') {
+      if (f.size > 25 * MB) return toast('File ghi âm tối đa 25MB', 'error')
+      return chepGiongNoi(f)
+    }
+    if (f.size > GIOI_HAN_TAI_LEN_MB * MB) return toast(`Tệp quá lớn (tối đa ${GIOI_HAN_TAI_LEN_MB}MB)`, 'error')
+    setFile(f)
   }
 
   const duyetVaNap = async () => {
     if (dangNap || !banSua.noiDung.trim()) return
     setDangNap(true)
     try {
-      // Lưu tệp gốc (ảnh/ghi âm/video/PDF) vào kho media để đối chiếu sau này
-      const loaiMedia = file?.type.startsWith('image/') ? 'anh' : file?.type.startsWith('audio/') ? 'am_thanh' : file ? 'tep' : null
-      const md = file ? await luuMedia(file, { loai: loaiMedia, nguoi: user.hoTen }) : null
+      // Lưu bản gốc (ảnh/PDF/video nhỏ/ghi âm) vào kho media để đối chiếu — lỗi lưu không chặn việc dạy Maika
+      const media = []
+      const luu = async (blob, loaiMedia, them = {}) => {
+        if (blob.size > GIOI_HAN_LUU_MEDIA_MB * MB) return
+        try {
+          const md = await luuMedia(blob, { loai: loaiMedia, nguoi: user.hoTen, ...them })
+          media.push({ id: md.id, loai: loaiMedia })
+        } catch (e) {
+          console.warn('[Dạy Maika] Không lưu được bản gốc:', e.message)
+        }
+      }
+      if (laTep && file) await luu(file, file.type.startsWith('image/') ? 'anh' : file.type.startsWith('video/') ? 'video' : 'tep')
+      for (const b of banGhi) await luu(b.blob, 'am_thanh', { banGhi: b.text })
       const r = await napTaiLieu({
         tieuDe: banSua.tieuDe.trim() || 'Tri thức nạp thủ công',
         noiDung: banSua.noiDung.trim(),
         tags: kq?.tags || [],
-        nguon: file?.name || 'Ghi chú Admin',
+        nguon: kq?.nguon || (loai === 'link' && link.trim()) || (laTep && file?.name) || (banGhi.length ? 'Giọng nói Admin' : 'Ghi chú Admin'),
         nguoi: user.hoTen,
-        media: md ? [{ id: md.id, loai: loaiMedia }] : [],
+        media,
       })
       toast(r.daHoc ? 'Maika đã học tri thức mới ✓' : 'Đã lưu — Maika sẽ học khi có mạng', 'success')
-      setKq(null)
-      setTt('idle')
-      setFile(null)
-      setNoiDung('')
+      datLai()
     } catch (e) {
       toast('Nạp lỗi: ' + (e.message || e), 'error')
     } finally {
@@ -233,13 +323,13 @@ export default function IngestionScreen({ onClose }) {
       ) : (
       <>
       <h2 className="text-2xl font-black text-gray-900">Hôm nay cần dạy Maika điều gì?</h2>
-      <p className="mb-4 mt-1 text-sm text-gray-500">Tải tài liệu, ảnh, video, ghi âm hoặc gõ ghi chú — Gemini trích xuất kiến thức, Admin duyệt rồi nạp thẳng vào bộ nhớ để Maika học ngay.</p>
+      <p className="mb-4 mt-1 text-sm text-gray-500">Gõ, nói (như tin nhắn thoại Zalo), hoặc gửi ảnh / video / PDF / file ghi âm. Maika trích xuất kiến thức, bạn xem lại rồi bấm nạp — Maika học ngay.</p>
 
-      {/* Loại dữ liệu */}
-      <div className="mb-4 grid grid-cols-4 gap-2">
+      {/* Cách dạy */}
+      <div className="mb-4 grid grid-cols-3 gap-2">
         {LOAI.map((l) => (
-          <button key={l.id} onClick={() => { setLoai(l.id); setFile(null) }}
-            className={`tap flex flex-col items-center gap-1 rounded-xl border py-3 text-center transition ${loai === l.id ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-gray-100 bg-gray-50 text-gray-500'}`}>
+          <button key={l.id} onClick={() => { if (ghiAm.dangGhi) return; setLoai(l.id); setFile(null) }}
+            className={`tap flex flex-col items-center gap-0.5 rounded-xl border py-2.5 text-center transition ${loai === l.id ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-gray-100 bg-gray-50 text-gray-500'}`}>
             <span className="text-xl">{l.icon}</span>
             <span className="text-[11px] font-bold">{l.nhan}</span>
             <span className="text-[9px] text-gray-400">{l.meta}</span>
@@ -247,28 +337,101 @@ export default function IngestionScreen({ onClose }) {
         ))}
       </div>
 
-      {/* Ghi chú */}
-      <textarea value={noiDung} onChange={(e) => setNoiDung(e.target.value)} rows={4}
-        placeholder="vd: Điều kiện thi công PU: bề mặt khô ráo, độ ẩm < 8%, nhiệt độ 8–35°C, tránh thi công khi sắp mưa..."
+      {/* Nói — bấm để ghi, bấm lần nữa để dừng; ghi nhiều đoạn được (nối tiếp) */}
+      {loai === 'noi' && (
+        <div className="mb-3 flex flex-col items-center rounded-2xl border border-brand-100 bg-brand-50/60 px-4 py-5">
+          {/* Đang phân tích đoạn trước → khoá ghi đoạn mới (đoạn mới sẽ bị bỏ khỏi kết quả phân tích) */}
+          <button onClick={batTatGhiAm} disabled={dangChep || (tt === 'analyzing' && !ghiAm.dangGhi)}
+            aria-label={ghiAm.dangGhi ? 'Dừng ghi âm' : 'Bắt đầu ghi âm'}
+            className={`flex h-20 w-20 items-center justify-center rounded-full text-3xl text-white shadow-lg transition disabled:opacity-50 ${ghiAm.dangGhi ? 'animate-pulse bg-red-600' : 'bg-brand-600'}`}>
+            {ghiAm.dangGhi ? '■' : '🎤'}
+          </button>
+          <div className="mt-2 text-sm font-bold text-gray-800">
+            {dangChep ? '⏳ Đang chuyển giọng nói thành chữ…' : tt === 'analyzing' && !ghiAm.dangGhi ? '⏳ Chờ Maika phân tích xong đoạn này…' : ghiAm.dangGhi ? `🔴 ${mmss(ghiAm.giay)} / ${mmss(TOI_DA_NOI_GIAY)} — bấm để dừng` : banGhi.length ? 'Bấm để nói tiếp (nối thêm)' : 'Bấm để nói'}
+          </div>
+          {ghiAm.dangGhi && (
+            <button onClick={() => ghiAm.ketThuc(true)} className="tap mt-1 text-[11px] font-semibold text-gray-500 underline">Huỷ đoạn này</button>
+          )}
+          {!ghiAm.dangGhi && !banGhi.length && (
+            <p className="mt-1 text-center text-[11px] text-gray-500">Nói tự nhiên như nhắn thoại, tối đa 5 phút/đoạn. Maika tự chép lời, sửa văn nói và trích kiến thức.</p>
+          )}
+        </div>
+      )}
+
+      {/* Đoạn thoại đã chép (nghe lại) */}
+      {banGhi.length > 0 && (
+        <div className="mb-3 space-y-1.5">
+          {banGhi.map((b, i) => (
+            <div key={b.url} className="rounded-xl border border-gray-100 bg-white p-2">
+              <audio src={b.url} controls className="h-8 w-full" />
+              <p className="mt-1 line-clamp-2 text-[11px] italic text-gray-500">#{i + 1} “{b.text}”</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Link: Maika tự vào đọc trang / xem video YouTube */}
+      {loai === 'link' && (
+        <div className="mb-3">
+          <div className="flex gap-2">
+            <input value={link} onChange={(e) => setLink(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && phanTich()}
+              type="url" inputMode="url" placeholder="https://… (bài kỹ thuật, trang sản phẩm, YouTube)"
+              className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm outline-none focus:border-brand-500 focus:bg-white" />
+            <button
+              onClick={async () => {
+                try {
+                  const t = (await navigator.clipboard.readText()).trim()
+                  if (t) setLink(t)
+                } catch {
+                  toast('Không đọc được bộ nhớ tạm — giữ ô để dán', 'info')
+                }
+              }}
+              className="tap flex-shrink-0 rounded-xl border border-brand-200 bg-white px-3 text-xs font-bold text-brand-700">
+              📋 Dán
+            </button>
+          </div>
+          <p className="mt-1.5 text-[11px] text-gray-500">
+            Maika vào đọc trang, rút kiến thức kỹ thuật + ý áp dụng cho tư vấn bán hàng. Link YouTube: Gemini xem cả video. Trang cần đăng nhập (Facebook cá nhân, nhóm kín) thường không đọc được → chụp màn hình gửi ở mục Ảnh.
+          </p>
+        </div>
+      )}
+
+      {/* File thoại Zalo / ảnh / video / PDF */}
+      {loaiHt.accept && (
+        <label className={`mb-3 flex items-center gap-3 rounded-xl border-2 border-dashed border-brand-300 px-4 py-3 transition hover:bg-brand-50 ${dangChep || tt === 'analyzing' ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}>
+          <input ref={inputRef} type="file" accept={loaiHt.accept} className="hidden" onChange={chonFile} />
+          <span className="text-2xl">{loaiHt.icon}</span>
+          {laTep && file ? (
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold text-gray-800">{file.name}</div>
+              <div className="text-[11px] text-gray-400">
+                {(file.size / MB).toFixed(1)} MB{file.size > GIOI_HAN_FILE_MB * MB ? ' · sẽ tải lên Gemini (tệp lớn, chờ lâu hơn)' : ''}
+              </div>
+            </div>
+          ) : (
+            <span className="text-sm font-semibold text-gray-500">
+              {dangChep ? '⏳ Đang chép lời…' : loai === 'audio' ? 'Chạm để chọn file ghi âm (tin nhắn thoại Zalo đã lưu, ≤ 25MB)' : `Chạm để chọn ${loaiHt.nhan.toLowerCase()} (≤ ${GIOI_HAN_TAI_LEN_MB}MB)`}
+            </span>
+          )}
+        </label>
+      )}
+
+      {/* Nội dung chữ: gõ trực tiếp / lời nói đã chép (sửa được) / ghi chú kèm tệp */}
+      <textarea value={noiDung} onChange={(e) => setNoiDung(e.target.value)} rows={loai === 'chu' ? 7 : 4}
+        placeholder={
+          loai === 'chu'
+            ? 'Gõ điều cần dạy Maika, vd: "Thi công PU chống thấm: sàn phải khô, độ ẩm < 8%, nhiệt độ 8–35°C. Khách hỏi giá Sika Latex thì báo kèm lưới thuỷ tinh."'
+            : loai === 'noi' || loai === 'audio'
+              ? 'Lời nói đã chép sẽ hiện ở đây — sửa lại nếu cần'
+              : loai === 'link'
+                ? 'Muốn Maika chú ý điều gì? (không bắt buộc), vd: "Chỉ lấy phần định mức & điều kiện thi công"'
+                : 'Ghi chú thêm cho tệp (không bắt buộc), vd: "Ảnh bao bì Sika 107 — đọc thông số"'
+        }
         className="mb-3 w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm outline-none focus:border-brand-500 focus:bg-white" />
 
-      {/* File */}
-      <label className="mb-4 flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-brand-300 px-4 py-3 transition hover:bg-brand-50">
-        <input ref={inputRef} type="file" accept={loaiHt.accept} className="hidden" onChange={chonFile} />
-        <span className="text-2xl">{loaiHt.icon}</span>
-        {file ? (
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold text-gray-800">{file.name}</div>
-            <div className="text-[11px] text-gray-400">{(file.size / 1024 / 1024).toFixed(1)} MB</div>
-          </div>
-        ) : (
-          <span className="text-sm font-semibold text-gray-500">Chạm để tải {loaiHt.nhan.toLowerCase()} (≤ {GIOI_HAN_FILE_MB}MB)</span>
-        )}
-      </label>
-
-      <button onClick={phanTich} disabled={tt === 'analyzing'}
+      <button onClick={() => phanTich()} disabled={tt === 'analyzing' || dangChep || ghiAm.dangGhi}
         className="tap flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 py-3.5 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-70">
-        {tt === 'analyzing' ? '⏳ Gemini đang phân tích...' : '✨ Phân tích bằng Gemini'}
+        {tt === 'analyzing' ? `⏳ ${tienDo || 'Đang phân tích…'}` : '✨ Phân tích & trích xuất tri thức'}
       </button>
 
       {/* Kết quả — Admin rà soát & chỉnh trước khi nạp (HITL) */}

@@ -11,6 +11,7 @@ import { batDauTheoDoi, dongBoLichNhac, xinQuyenThongBao } from './services/troL
 import { useToast } from './context/ToastContext'
 import { napKiotViet } from './services/kiotViet'
 import { napTheCao } from './services/triThucCao'
+import { batDauJobFollowUp, SO_NGAY_FOLLOW_UP } from './services/followUpTuDong'
 import LoginScreen from './screens/LoginScreen'
 import HomeScreen from './screens/HomeScreen'
 import LookupScreen from './screens/LookupScreen'
@@ -64,6 +65,15 @@ export default function App() {
       dung()
       listener?.remove?.()
     }
+  }, [user, toast])
+
+  // Proactive: báo giá trên Google Sheet quá 2 ngày chưa chốt → Maika tự tạo việc follow-up cho sales phụ trách
+  useEffect(() => {
+    if (!user) return
+    return batDauJobFollowUp(user, (ds) => {
+      toast(`📑 Maika vừa thêm ${ds.length} việc follow-up báo giá (quá ${SO_NGAY_FOLLOW_UP} ngày chưa chốt)`, 'info')
+      setTab('home')
+    })
   }, [user, toast])
 
   // KiotViet (bản sao mã hoá, GitHub Actions đồng bộ ~30 phút): nạp khi đăng nhập + làm mới 15 phút/lần

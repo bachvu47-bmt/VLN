@@ -1,0 +1,6 @@
+# Cấu hình tối thiểu cho Supabase CLI (chỉ dùng để deploy hàm máy chủ "maika")
+project_id = "maika"
+
+[functions.maika]
+# Web vatlieunha.vn gọi không cần đăng nhập — hàm tự giới hạn lượt theo IP
+verify_jwt = false
