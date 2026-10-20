@@ -49,7 +49,8 @@ export async function napTheCao({ batBuoc = false } = {}) {
   const moi = the.filter((t) => !daNhan.has(t.id))
   // Cũ nhất trước → thẻ mới nhất nằm đầu danh sách chờ duyệt
   for (const t of moi.reverse()) {
-    await themTheCao(t)
+    // daHoc: thẻ chính hãng đã được nạp thẳng vào kho chung → không cần duyệt lại
+    if (!t.daHoc) await themTheCao(t)
     daNhan.add(t.id)
   }
   if (moi.length) await idbPut(STORE_KV, [...daNhan].slice(-2000), KEY_DA_NHAN).catch(() => {})

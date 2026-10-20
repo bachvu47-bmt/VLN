@@ -195,7 +195,16 @@ const hoSoCanHoc = [
   ...hoSoMoi,
   ...[...hoSoCu.values()].filter((r) => !r.co_vector && !r.da_xoa && spCon.has(r.sp_id) && !hoSoMoi.some((m) => m.id === r.id)),
 ].map((r) => ({ id: r.id, tieuDe: r.tieu_de, noiDung: r.noi_dung }))
-const canHoc = [...hoSoCanHoc, ...doan.filter((d) => thieu.has(d.id))]
+// Tri thức khác chưa có vector (thẻ chính hãng nsx:, Maika tự học tu-hoc:, đính chính…) → học trước nhất
+const khacThieu = await fetch(
+  `${URL_KHO}/rest/v1/tri_thuc?select=id,tieu_de,noi_dung&trang_thai=eq.da_duyet&da_xoa=eq.false&co_vector=eq.false&id=not.like.web:*&id=not.like.hs:*&limit=500`,
+  { headers: hdr },
+).then((r) => r.json())
+const canHoc = [
+  ...khacThieu.map((r) => ({ id: r.id, tieuDe: r.tieu_de, noiDung: r.noi_dung })),
+  ...hoSoCanHoc,
+  ...doan.filter((d) => thieu.has(d.id)),
+]
 console.log(`• Vector hoá ${canHoc.length} đoạn…`)
 let xong = 0
 let rotMang = 0

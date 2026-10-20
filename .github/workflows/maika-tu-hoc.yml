@@ -1,0 +1,44 @@
+name: Maika tự học
+
+# Mỗi đêm 23:00 giờ VN: đọc nhật ký hỏi đáp trong ngày → tự nghiên cứu câu "chưa có dữ liệu",
+# tự chấm bài (bịa số / bị chê / giám khảo AI), soạn đính chính có trích dẫn nguồn (khớp nguyên văn
+# → học ngay, không khớp → chờ Admin duyệt), rút bài học nạp vào mọi câu trả lời.
+on:
+  schedule:
+    - cron: '0 16 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: maika-tu-hoc
+  cancel-in-progress: false
+
+jobs:
+  tu-hoc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts
+            src/services
+            supabase/functions/_shared
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Cài thư viện đọc PDF (TDS)
+        run: npm i --prefix /tmp/pdfjs --no-save --no-package-lock --no-audit --no-fund pdfjs-dist@4.10.38
+
+      - name: Tự học
+        env:
+          PDFJS: /tmp/pdfjs/node_modules/pdfjs-dist/legacy/build/pdf.mjs
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_GROQ_API_KEY: ${{ secrets.VITE_GROQ_API_KEY }}
+          ADMIN_PIN: ${{ secrets.MAIKA_ADMIN_PIN }}
+        run: node scripts/maika-tu-hoc.mjs

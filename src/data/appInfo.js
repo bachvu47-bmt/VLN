@@ -3,7 +3,7 @@
 // ============================================================
 
 // Phiên bản hiện đang chạy trên thiết bị
-export const PHIEN_BAN_HIEN_TAI = '1.1.17'
+export const PHIEN_BAN_HIEN_TAI = '1.1.18'
 
 // ---- Cấu hình GitHub Releases (nguồn cập nhật OTA) ----
 // ⚠️ Đổi owner/repo thành repo GitHub thật của bạn.
@@ -18,12 +18,19 @@ export const GITHUB_API_LATEST = `https://api.github.com/repos/${GITHUB_REPO.own
 // Dữ liệu "server nội bộ" trả về khi kiểm tra cập nhật (mock).
 // Trong thực tế, dữ liệu này đến từ GitHub Releases API ở trên.
 export const BAN_CAP_NHAT_SERVER = {
-  phienBan: '1.1.17',
+  phienBan: '1.1.18',
   ngayPhatHanh: '2026-10-20',
   batBuoc: false, // true => chặn dùng app cho tới khi cập nhật
-  tieuDe: 'Maika một bộ não chung cho app & website — bán gì học nấy',
+  tieuDe: 'Maika tự học: đọc TDS, tự nghiên cứu, tự chấm bài & rút bài học',
   kichThuocMB: { exe: 108, apk: 3.6 },
   changelog: [
+    { loai: 'moi', noiDung: 'Maika trả lời như chuyên gia kỹ thuật: xác nhận đúng ý hỏi, tóm gọn tối đa 6 ý, kèm 1 link đúng bài trên vatlieunha.vn — link bấm được ngay trong khung chat.' },
+    { loai: 'moi', noiDung: 'Đọc sâu tài liệu kỹ thuật (TDS, hướng dẫn thi công PDF) của nhà sản xuất: định mức, tỷ lệ pha, thời gian chờ lấy từ tài liệu chính hãng.' },
+    { loai: 'moi', noiDung: 'Tự nghiên cứu: câu nào Maika "chưa có dữ liệu", đêm đó Maika tự tìm trên vatlieunha.vn, trang + TDS nhà sản xuất rồi học bổ sung.' },
+    { loai: 'moi', noiDung: 'Tự chấm bài mỗi đêm: phát hiện số liệu không có căn cứ, câu trả lời bị chê hoặc lạc đề → tự soạn đính chính có trích dẫn nguồn.' },
+    { loai: 'moi', noiDung: 'Tự rút bài học từ các lỗi đã sửa và áp dụng cho mọi câu trả lời sau, không lặp lại lỗi cùng kiểu.' },
+    { loai: 'caitien', noiDung: 'Tự soát trước khi gửi: câu trả lời có con số không có trong tri thức → Maika tự viết lại ngay.' },
+    { loai: 'caitien', noiDung: 'Thẻ tri thức chính hãng đã kiểm chứng được học ngay, không cần Admin duyệt; thẻ chưa chắc chắn vẫn vào "Duyệt kiến thức".' },
     { loai: 'moi', noiDung: 'Maika dùng chung một bộ não với Maika trên vatlieunha.vn: tri thức, đính chính của Admin và vector nằm trên máy chủ, mọi máy cùng dùng.' },
     { loai: 'moi', noiDung: 'Bán gì học nấy: mỗi sản phẩm đang bán có hồ sơ riêng — công dụng, thi công ở đâu, định mức, chống chỉ định, điểm mạnh, giải pháp đi kèm.' },
     { loai: 'caitien', noiDung: 'Cào trang Sika, Jotun, Maxbond chỉ học sản phẩm cửa hàng đang bán, thẻ tri thức theo đúng khung hồ sơ.' },

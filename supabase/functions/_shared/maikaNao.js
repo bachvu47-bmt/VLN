@@ -90,11 +90,18 @@ ${NGUYEN_TAC_CHUNG}
 - Không bàn chuyện ngoài lĩnh vực vật liệu xây dựng / sửa chữa nhà; khách hỏi lạc đề thì lịch sự kéo về chủ đề công trình.
 - Cuối câu trả lời tư vấn giải pháp, có thể mời khách gửi ảnh hiện trạng hoặc để lại số điện thoại cho kỹ thuật viên gọi lại (tối đa 1 câu, không lặp lại ở mọi tin).`
 
-export function systemPrompt({ cheDo = 'noi-bo', khoNoiBo = '', triThuc = [] } = {}) {
+export function systemPrompt({ cheDo = 'noi-bo', khoNoiBo = '', triThuc = [], baiHoc = '' } = {}) {
   const dinhChinh = triThuc.filter((t) => t.loai === 'sua_sai')
   const thamKhao = triThuc.filter((t) => t.loai !== 'sua_sai')
   return `${cheDo === 'khach' ? VAI_KHACH : VAI_NOI_BO}
 ${
+  baiHoc
+    ? `
+BÀI HỌC MAIKA TỰ RÚT RA TỪ CÁC LẦN TRẢ LỜI SAI TRƯỚC ĐÂY (luôn áp dụng):
+${baiHoc}
+`
+    : ''
+}${
   dinhChinh.length
     ? `
 ĐÍNH CHÍNH TỪ ADMIN (ưu tiên TUYỆT ĐỐI — đây là các lỗi bạn từng trả lời sai, phải dùng nội dung đúng dưới đây):
@@ -110,6 +117,25 @@ ${thamKhao.map((t, i) => `[T${i + 1}] ${t.tieuDe}\n${t.noiDung}${LINK_HOP_LE.tes
     : ''
 }${khoNoiBo ? `\nKHO SẢN PHẨM NỘI BỘ:\n${khoNoiBo}` : ''}`
 }
+
+// ---------- TỰ SOÁT (máy chủ dùng trước khi gửi, job đêm dùng khi chấm bài) ----------
+// Con số kèm đơn vị kỹ thuật trong câu trả lời mà KHÔNG có ở đâu trong ngữ cảnh (lời dặn, tri thức,
+// kho, câu hỏi) → nhiều khả năng Maika tự đặt ra. Trả về danh sách cụm số lạ (rỗng = sạch).
+const RE_SO_DON_VI = /(\d+(?:[.,]\d+)?)(?:\s*[-–~]\s*(\d+(?:[.,]\d+)?))?\s*(kg\s*\/\s*m(?:2|²)|g\s*\/\s*m(?:2|²)|l(?:ít)?\s*\/\s*m(?:2|²)|m(?:2|²)\s*\/\s*(?:kg|l(?:ít)?|thùng|bao)|kg|lít|ml|%|°\s*c|độ\s*c|phút|giờ|ngày|mm|cm|µm|micron|mpa|n\/mm)/gi
+const chuanSo = (s) => String(Number(String(s).replace(',', '.')))
+export function soLa(traLoi = '', nguCanh = '') {
+  const coSan = new Set([...String(nguCanh).matchAll(/\d+(?:[.,]\d+)?/g)].map((m) => chuanSo(m[0])))
+  const la = []
+  for (const m of String(traLoi).matchAll(RE_SO_DON_VI)) {
+    const so = [m[1], m[2]].filter(Boolean).map(chuanSo)
+    if (so.some((x) => !coSan.has(x))) la.push(m[0].trim())
+  }
+  return [...new Set(la)]
+}
+
+// Người hỏi chê câu trả lời trước → tín hiệu để Maika tự xem lại
+export const RE_CHE = /(sai rồi|sai bét|trả lời sai|nói sai|không đúng|chưa đúng|không phải (vậy|thế|như vậy)|nhầm rồi|bịa|vô lý|đâu có|tào lao)/i
+export const RE_CHUA_CO = /chưa có dữ liệu/i
 
 // Groq chỉ ~8.000 token/phút → bớt tri thức truy xuất (5 mẩu, mỗi mẩu ≤ 1.000 ký tự — ngắn hơn
 // thì cắt mất quy cách/dạng sản phẩm, model dễ "đoán" sai),

@@ -41,9 +41,16 @@ jobs:
             curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/tri-thuc/$f" -o "/tmp/tri-thuc/$f" || rm -f "/tmp/tri-thuc/$f"
           done
 
+      - name: Cài thư viện đọc PDF (TDS)
+        run: npm i --prefix /tmp/pdfjs --no-save --no-package-lock --no-audit --no-fund pdfjs-dist@4.10.38
+
       - name: Cào & tóm tắt
         env:
+          PDFJS: /tmp/pdfjs/node_modules/pdfjs-dist/legacy/build/pdf.mjs
           GROQ_API_KEY: ${{ secrets.VITE_GROQ_API_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          ADMIN_PIN: ${{ secrets.MAIKA_ADMIN_PIN }}
           GIOI_HAN_MOI_NGUON: ${{ github.event.inputs.gioi_han || '8' }}
         run: node scripts/cao-tri-thuc.mjs /tmp/tri-thuc
 

@@ -11,7 +11,7 @@
 //  Secrets: GEMINI_API_KEY, GROQ_API_KEY (đặt bằng scripts/setup-supabase.mjs). SUPABASE_DB_URL có sẵn.
 // ============================================================
 import postgres from 'npm:postgres@3.4.4'
-import { cauTruyVan, GEMINI_MODELS, GROQ_MODELS, NHIET_DO, rutGonNguCanh, sangMessagesGroq, SO_CHIEU_VECTOR, systemPrompt, toContents } from '../_shared/maikaNao.js'
+import { cauTruyVan, GEMINI_MODELS, GROQ_MODELS, NHIET_DO, RE_CHE, RE_CHUA_CO, rutGonNguCanh, sangMessagesGroq, SO_CHIEU_VECTOR, soLa, systemPrompt, toContents } from '../_shared/maikaNao.js'
 
 const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
 const GROQ_KEY = Deno.env.get('GROQ_API_KEY') || ''
@@ -177,6 +177,35 @@ async function timTriThuc(text: string, k = 6) {
   return gop.sort((a, b) => Number(b.loai === 'sua_sai') - Number(a.loai === 'sua_sai')).slice(0, k).map(doiHang)
 }
 
+// ---------- Tự học: bài học (job đêm rút ra) & nhật ký hỏi đáp ----------
+// Bảng chưa tạo / lỗi DB → bỏ qua, Maika vẫn trả lời bình thường
+let _baiHoc = { gia: '', luc: 0 }
+async function layBaiHoc() {
+  if (Date.now() - _baiHoc.luc < 10 * 60 * 1000) return _baiHoc.gia
+  try {
+    const r = await sql`select gia_tri from public.cau_hinh where khoa = 'bai_hoc'`
+    _baiHoc = { gia: String(r[0]?.gia_tri || '').slice(0, 3000), luc: Date.now() }
+  } catch {
+    _baiHoc = { gia: '', luc: Date.now() }
+  }
+  return _baiHoc.gia
+}
+
+function ghiNhatKy(cheDo: string, lichSu: any[], triThuc: any[], text: string, tuSua: boolean) {
+  const cuoi = lichSu[lichSu.length - 1]
+  const iTruoc = lichSu.map((m) => m.tu).lastIndexOf('maika', lichSu.length - 2)
+  const biChe = iTruoc >= 0 && RE_CHE.test(cuoi?.text || '')
+  const cauTruoc = biChe ? [...lichSu.slice(0, iTruoc)].reverse().find((m) => m.tu === 'user')?.text || '' : null
+  const viec = sql`
+    insert into public.nhat_ky (che_do, cau_hoi, tra_loi, tri_thuc, chua_co, bi_che, tu_sua, cau_hoi_truoc, tra_loi_truoc)
+    values (${cheDo}, ${String(cuoi?.text || (cuoi?.anh ? '(ảnh)' : '')).slice(0, 2000)}, ${text.slice(0, 4000)},
+            ${triThuc.map((t) => `[${t.tieuDe}] ${t.noiDung}`).join('\n\n').slice(0, 6000)},
+            ${RE_CHUA_CO.test(text)}, ${biChe}, ${tuSua}, ${cauTruoc}, ${biChe ? lichSu[iTruoc].text.slice(0, 4000) : null})`
+    .catch((e: any) => console.warn('[maika] ghi nhật ký lỗi:', e.message))
+  // Không bắt người hỏi chờ việc ghi
+  ;(globalThis as any).EdgeRuntime?.waitUntil?.(viec)
+}
+
 // ---------- Giới hạn lượt ----------
 async function conLuot(cheDo: 'khach' | 'noi-bo', ip: string) {
   const [moiIp, tong] = GIOI_HAN[cheDo]
@@ -225,7 +254,29 @@ Deno.serve(async (req) => {
     const triThuc = triThucApp ?? (await timTriThuc(truyVan).catch((e) => (console.warn('[maika] tìm tri thức lỗi:', e.message), [])))
     const khoNoiBo = cheDo === 'noi-bo' ? String(body?.khoNoiBo || '').slice(0, 20000) : ''
 
-    const kq = await traLoi({ cheDo, khoNoiBo, triThuc }, lichSu)
+    const nguCanh = { cheDo, khoNoiBo, triThuc, baiHoc: await layBaiHoc() }
+    let kq = await traLoi(nguCanh, lichSu)
+
+    // Tự soát trước khi gửi: con số kỹ thuật không có trong ngữ cảnh → bắt Maika viết lại 1 lần
+    const coSan = systemPrompt(nguCanh) + '\n' + lichSu.map((m) => m.text).join('\n')
+    const la = soLa(kq.text, coSan)
+    let tuSua = false
+    if (la.length) {
+      try {
+        const sua = await traLoi(nguCanh, [
+          ...lichSu,
+          { tu: 'maika', text: kq.text },
+          { tu: 'user', text: `(Kiểm tra nội bộ — không phải khách hỏi) Bản nháp có số liệu KHÔNG có trong tri thức: ${la.join(', ')}. Viết lại câu trả lời cho câu hỏi trước: bỏ hẳn các số đó (cần thì ghi "theo TDS"), giữ giọng và bố cục. Chỉ trả nội dung gửi người hỏi.` },
+        ])
+        if (soLa(sua.text, coSan).length < la.length) {
+          kq = sua
+          tuSua = true
+        }
+      } catch (e: any) {
+        console.warn('[maika] tự sửa lỗi:', e?.message)
+      }
+    }
+    ghiNhatKy(cheDo, lichSu, triThuc, kq.text, tuSua)
     return traVe(kq)
   } catch (e: any) {
     console.error('[maika] lỗi:', e?.message)

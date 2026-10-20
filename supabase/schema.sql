@@ -191,6 +191,68 @@ begin
 end $$;
 revoke all on function public.dem_luot(text, int, text, int) from public, anon, authenticated;
 
+-- ---------- MAIKA TỰ HỌC ----------
+-- Nhật ký hỏi đáp: hàm máy chủ "maika" ghi mỗi lượt; job đêm (scripts/maika-tu-hoc.mjs) đọc qua PIN để
+-- tự nghiên cứu câu "chưa có dữ liệu", tự chấm câu trả lời, rút bài học. anon KHÔNG đọc được.
+create table if not exists public.nhat_ky (
+  id            bigserial primary key,
+  luc           timestamptz not null default now(),
+  che_do        text not null,
+  cau_hoi       text not null default '',
+  tra_loi       text not null default '',
+  tri_thuc      text not null default '', -- tri thức đã đưa cho Maika (để chấm có bịa không)
+  chua_co       boolean not null default false, -- Maika nói "chưa có dữ liệu"
+  bi_che        boolean not null default false, -- người hỏi chê câu trả lời trước ("sai rồi"…)
+  tu_sua        boolean not null default false, -- máy chủ đã bắt Maika viết lại vì số liệu lạ
+  cau_hoi_truoc text,
+  tra_loi_truoc text,
+  da_xu_ly      boolean not null default false,
+  ket_qua       text
+);
+create index if not exists nhat_ky_cho_idx on public.nhat_ky (da_xu_ly, luc);
+alter table public.nhat_ky enable row level security;
+revoke all on public.nhat_ky from anon, authenticated;
+
+-- Cấu hình nhỏ dạng khoá–giá trị: 'bai_hoc' = các bài học Maika rút ra từ lỗi cũ (nạp vào mọi câu trả lời)
+create table if not exists public.cau_hinh (
+  khoa         text primary key,
+  gia_tri      text not null default '',
+  cap_nhat_luc timestamptz not null default now()
+);
+alter table public.cau_hinh enable row level security;
+drop policy if exists cau_hinh_doc on public.cau_hinh;
+create policy cau_hinh_doc on public.cau_hinh for select to anon, authenticated using (true);
+revoke insert, update, delete on public.cau_hinh from anon, authenticated;
+
+create or replace function public.admin_doc_nhat_ky(p_pin text, p_gioi_han int default 200)
+returns setof public.nhat_ky language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform public._bat_pin(p_pin);
+  return query select * from public.nhat_ky where not da_xu_ly
+    order by bi_che desc, chua_co desc, tu_sua desc, luc limit least(greatest(p_gioi_han, 1), 1000);
+end $$;
+
+create or replace function public.admin_xong_nhat_ky(p_pin text, p_ids bigint[], p_ket_qua text default null)
+returns int language plpgsql security definer set search_path = public, extensions as $$
+declare n int;
+begin
+  perform public._bat_pin(p_pin);
+  update public.nhat_ky set da_xu_ly = true, ket_qua = left(p_ket_qua, 500) where id = any(p_ids);
+  get diagnostics n = row_count;
+  delete from public.nhat_ky where luc < now() - interval '60 days';
+  return n;
+end $$;
+
+create or replace function public.admin_dat_cau_hinh(p_pin text, p_khoa text, p_gia_tri text)
+returns void language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform public._bat_pin(p_pin);
+  insert into public.cau_hinh (khoa, gia_tri, cap_nhat_luc) values (p_khoa, left(p_gia_tri, 8000), now())
+  on conflict (khoa) do update set gia_tri = excluded.gia_tri, cap_nhat_luc = now();
+end $$;
+
 grant execute on function public.kiem_tra_pin(text), public.de_xuat_sua_sai(text, text, text, text, text),
   public.admin_ghi(text, jsonb), public.admin_gan_vector(text, jsonb), public.admin_xoa(text, text[]),
-  public.tim_tri_thuc(extensions.vector, int, float) to anon, authenticated;
+  public.tim_tri_thuc(extensions.vector, int, float),
+  public.admin_doc_nhat_ky(text, int), public.admin_xong_nhat_ky(text, bigint[], text),
+  public.admin_dat_cau_hinh(text, text, text) to anon, authenticated;
