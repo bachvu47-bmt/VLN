@@ -12,7 +12,6 @@ import { coNguonBaoCao } from '../services/baoCaoSheets'
 import { LICH_CAO, napTheCao, NGUON_CAO, NGUON_TIN, trangThaiCao, URL_NGUON_THE } from '../services/triThucCao'
 import { danhSach, duyetDeXuat, keoKhoChung, thongTinTin } from '../services/vectorStore'
 
-const NGUONG_DUYET_NHANH = 90
 
 // ============================================================
 //  NGUỒN CÀO PUBLIC + CƠ CHẾ SECURE API (Ổ KHOÁ) — giải thích cho Admin trước khi duyệt
@@ -131,26 +130,28 @@ export default function DuyetScreen({ onClose }) {
   const theTin = choDuyet.filter((r) => thongTinTin(r))
   const theNV = choDuyet.filter((r) => !r.tuDong && !thongTinTin(r))
   const hien = loc === 'cao' ? theCao : loc === 'tin' ? theTin : loc === 'nv' ? theNV : choDuyet
-  // Tin tức không bao giờ duyệt nhanh — Admin đọc từng tin
-  const duyetNhanh = theCao.filter((r) => (r.doTinCay || 0) >= NGUONG_DUYET_NHANH)
-
   const canPin = coKhoChung() && !coQuyenAdmin()
+  const tenLoc = { tat: '', nv: ' đề xuất nhân viên', cao: ' thẻ Maika cào', tin: ' tin tức' }[loc]
 
+  // Phê duyệt tất cả thẻ đang hiện (theo bộ lọc) — Admin bấm = đã duyệt (HITL), có hộp xác nhận
   const duyetHet = async () => {
-    if (dangDuyet || !duyetNhanh.length) return
+    const ds = hien.filter((r) => (r.traLoiDung || '').trim())
+    if (dangDuyet || !ds.length) return
     if (canPin) return toast('Xác thực máy Admin ở ô phía trên trước (chỉ 1 lần)', 'info')
-    setDangDuyet(true)
+    if (!window.confirm(`Phê duyệt tất cả ${ds.length}${tenLoc} đang chờ? Maika sẽ học toàn bộ nội dung này.`)) return
+    setDangDuyet({ xong: 0, tong: ds.length })
     let ok = 0
-    for (const r of duyetNhanh) {
+    for (const r of ds) {
       try {
         await duyetDeXuat(r.id, { traLoiDung: r.traLoiDung, nguoi: user.hoTen })
         ok++
       } catch {
         /* bỏ qua thẻ lỗi, duyệt tiếp */
       }
+      setDangDuyet({ xong: ok, tong: ds.length })
     }
     setDangDuyet(false)
-    toast(`Đã duyệt ${ok} thẻ — Maika đang học`, 'success')
+    toast(ok === ds.length ? `Đã phê duyệt ${ok} thẻ — Maika đang học` : `Đã phê duyệt ${ok}/${ds.length} thẻ — ${ds.length - ok} thẻ lỗi, thử lại sau`, ok ? 'success' : 'error')
   }
 
   return (
@@ -199,10 +200,10 @@ export default function DuyetScreen({ onClose }) {
             ))}
           </div>
 
-          {(loc === 'tat' || loc === 'cao') && duyetNhanh.length > 1 && (
-            <button onClick={duyetHet} disabled={dangDuyet}
+          {hien.length > 1 && (
+            <button onClick={duyetHet} disabled={!!dangDuyet}
               className="tap mb-4 w-full rounded-xl border border-emerald-200 bg-emerald-50 py-2.5 text-xs font-bold text-emerald-700 disabled:opacity-60">
-              {dangDuyet ? '⏳ Đang duyệt…' : `✓ Duyệt nhanh ${duyetNhanh.length} thẻ cào có độ tin cậy ≥ ${NGUONG_DUYET_NHANH}%`}
+              {dangDuyet ? `⏳ Đang duyệt ${dangDuyet.xong}/${dangDuyet.tong}…` : `✓ Phê duyệt tất cả ${hien.length}${tenLoc}`}
             </button>
           )}
 
