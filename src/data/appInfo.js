@@ -3,7 +3,7 @@
 // ============================================================
 
 // Phiên bản hiện đang chạy trên thiết bị
-export const PHIEN_BAN_HIEN_TAI = '1.1.19'
+export const PHIEN_BAN_HIEN_TAI = '1.1.20'
 
 // ---- Cấu hình GitHub Releases (nguồn cập nhật OTA) ----
 // ⚠️ Đổi owner/repo thành repo GitHub thật của bạn.
@@ -18,12 +18,19 @@ export const GITHUB_API_LATEST = `https://api.github.com/repos/${GITHUB_REPO.own
 // Dữ liệu "server nội bộ" trả về khi kiểm tra cập nhật (mock).
 // Trong thực tế, dữ liệu này đến từ GitHub Releases API ở trên.
 export const BAN_CAP_NHAT_SERVER = {
-  phienBan: '1.1.19',
-  ngayPhatHanh: '2026-10-20',
+  phienBan: '1.1.20',
+  ngayPhatHanh: '2026-10-23',
   batBuoc: false, // true => chặn dùng app cho tới khi cập nhật
-  tieuDe: 'Thông báo trên điện thoại: hoá đơn KiotViet mới & bản cập nhật',
-  kichThuocMB: { exe: 108, apk: 3.7 },
+  tieuDe: 'KiotViet tự kết nối · Tra cứu có giá & tồn từng quy cách · Gửi tài liệu kiểu chat',
+  kichThuocMB: { exe: 108, apk: 3.8 },
   changelog: [
+    { loai: 'moi', noiDung: 'KiotViet tự kết nối, không còn ô nhập "Mã dữ liệu cửa hàng": giá bán, tồn kho có sẵn trên mọi máy.' },
+    { loai: 'caitien', noiDung: 'Bảo mật: khách hàng, hoá đơn, công nợ chỉ máy Admin xem được (máy chủ kiểm tra), nhân viên tra tồn kho & giá ở Tra cứu.' },
+    { loai: 'moi', noiDung: 'Tra cứu: mỗi sản phẩm hiện giá & tồn theo từng quy cách (1L, 5L, 20L…) từ KiotViet, kèm hồ sơ, hướng dẫn, định mức từ vatlieunha.vn. Bỏ hàng minh hoạ.' },
+    { loai: 'caitien', noiDung: 'Ảnh sản phẩm thật (website / KiotViet); thiếu ảnh hiện logo thương hiệu. Admin bổ sung ảnh ở Duyệt kiến thức → Ảnh SP.' },
+    { loai: 'moi', noiDung: 'Gửi tài liệu cho khách kiểu chat: gõ tên sản phẩm → Maika gợi ý tài liệu, chạm để đính kèm; nút (+) gửi ảnh, video, PDF, Word; gửi thẳng qua Zalo.' },
+    { loai: 'moi', noiDung: 'Maika cào tin tức ngành vật liệu xây dựng & chống thấm mỗi sáng → Admin duyệt rồi Maika mới học.' },
+    { loai: 'caitien', noiDung: 'Duyệt kiến thức: máy Admin xác thực 1 lần ngay trên thẻ rồi duyệt tiếp, không báo lỗi PIN nữa.' },
     { loai: 'moi', noiDung: 'Thông báo đẩy trên Android (kể cả khi tắt app): có hoá đơn mới trên KiotViet → máy Admin báo ngay, chạm vào mở Báo cáo.' },
     { loai: 'moi', noiDung: 'Có bản VatLieuNha Sales mới → mọi máy nhận thông báo, chạm vào để cập nhật.' },
     { loai: 'caitien', noiDung: 'Kênh thông báo riêng (Hoá đơn mới · Bản cập nhật · Bản tin Maika) — tắt/bật từng loại trong cài đặt Android.' },
