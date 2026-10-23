@@ -15,19 +15,28 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
 
+// Lỗi → annotation "::error::" (đọc được trên GitHub không cần đăng nhập, log thì cần) — không bao giờ in khoá/PIN
+const baoLoi = (e) => {
+  console.log(`::error title=Đồng bộ KiotViet::${String(e?.message || e).replace(/\r?\n/g, ' ').slice(0, 500)}`)
+  process.exit(1)
+}
+process.on('uncaughtException', baoLoi)
+process.on('unhandledRejection', baoLoi)
+
 const { KV_CLIENT_ID, KV_CLIENT_SECRET, VITE_SUPABASE_ANON_KEY, ADMIN_PIN } = process.env
 const RA = process.argv[2] || 'du-lieu'
 const SO_NGAY_HOA_DON = 180
 if (!KV_CLIENT_ID || !KV_CLIENT_SECRET) throw new Error('Thiếu KV_CLIENT_ID / KV_CLIENT_SECRET')
 const KHO = (process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '')
-if (!KHO || !VITE_SUPABASE_ANON_KEY || !ADMIN_PIN) throw new Error('Thiếu VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY / ADMIN_PIN (phần riêng tư lưu trên Supabase)')
+const thieu = [!KHO && 'VITE_SUPABASE_URL', !VITE_SUPABASE_ANON_KEY && 'VITE_SUPABASE_ANON_KEY', !ADMIN_PIN && 'MAIKA_ADMIN_PIN'].filter(Boolean)
 
-const tk = await (await fetch('https://id.kiotviet.vn/connect/token', {
+const rTk = await fetch('https://id.kiotviet.vn/connect/token', {
   method: 'POST',
   headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
   body: new URLSearchParams({ scopes: 'PublicApi.Access', grant_type: 'client_credentials', client_id: KV_CLIENT_ID, client_secret: KV_CLIENT_SECRET }),
-})).json()
-if (!tk.access_token) throw new Error('Không lấy được token KiotViet')
+})
+const tk = await rTk.json().catch(() => ({}))
+if (!tk.access_token) throw new Error(`Không lấy được token KiotViet (HTTP ${rTk.status} ${tk.error || ''})`)
 const retailer = JSON.parse(Buffer.from(tk.access_token.split('.')[1], 'base64url')).client_RetailerCode
 const H = { Retailer: retailer, Authorization: 'Bearer ' + tk.access_token }
 
@@ -120,17 +129,27 @@ const khach = (await layHet('/customers?orderBy=createdDate&orderDirection=Desc'
 
 const capNhat = new Date().toISOString()
 
-// Phần RIÊNG TƯ → Supabase trước: lỗi thì dừng, không đăng bản công khai lệch giờ với bản riêng
-const rieng = gzipSync(Buffer.from(JSON.stringify({ capNhat, hoaDon, khach })), { level: 9 })
-const r = await fetch(`${KHO}/rest/v1/rpc/admin_ghi_kiotviet`, {
-  method: 'POST',
-  headers: { apikey: VITE_SUPABASE_ANON_KEY, Authorization: `Bearer ${VITE_SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
-  body: JSON.stringify({ p_pin: ADMIN_PIN, p_du_lieu: rieng.toString('base64') }),
-})
-if (!r.ok) throw new Error(`Ghi phần riêng tư lên Supabase lỗi HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`)
-
 // Phần CÔNG KHAI → tệp JSON cho mọi máy + web (không có khách hàng, hoá đơn, công nợ)
 mkdirSync(RA, { recursive: true })
 writeFileSync(join(RA, 'kiotviet-cong-khai.json'), JSON.stringify({ capNhat, retailer, chiNhanh, sanPham }))
 console.log(`✓ Công khai: ${sanPham.length} hàng hoá → ${join(RA, 'kiotviet-cong-khai.json')}`)
-console.log(`✓ Riêng tư (chỉ Admin): ${hoaDon.length} hoá đơn (${SO_NGAY_HOA_DON} ngày) · ${khach.length} khách → Supabase (${(rieng.length / 1024).toFixed(0)}KB nén)`)
+
+// Phần RIÊNG TƯ → Supabase. Lỗi thì báo annotation nhưng VẪN đăng phần công khai (nhân viên vẫn có giá/tồn);
+// máy Admin giữ bản riêng tư lần trước tới khi sửa xong.
+const rieng = gzipSync(Buffer.from(JSON.stringify({ capNhat, hoaDon, khach })), { level: 9 })
+if (thieu.length) {
+  console.log(`::error title=KiotViet riêng tư::Thiếu GitHub Secret ${thieu.join(', ')} — chưa lưu khách hàng & hoá đơn cho Admin`)
+} else {
+  const r = await fetch(`${KHO}/rest/v1/rpc/admin_ghi_kiotviet`, {
+    method: 'POST',
+    headers: { apikey: VITE_SUPABASE_ANON_KEY, Authorization: `Bearer ${VITE_SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_pin: ADMIN_PIN, p_du_lieu: rieng.toString('base64') }),
+  })
+  if (r.ok) {
+    console.log(`✓ Riêng tư (chỉ Admin): ${hoaDon.length} hoá đơn (${SO_NGAY_HOA_DON} ngày) · ${khach.length} khách → Supabase (${(rieng.length / 1024).toFixed(0)}KB nén)`)
+  } else {
+    const t = (await r.text()).replace(/\s+/g, ' ').slice(0, 200)
+    const goiY = /PIN/i.test(t) ? ' → Secret MAIKA_ADMIN_PIN khác PIN trên máy chủ' : r.status === 401 ? ' → Secret VITE_SUPABASE_ANON_KEY sai/hết hạn' : /admin_ghi_kiotviet/.test(t) ? ' → máy chủ chưa chạy schema mới (setup-supabase)' : ''
+    console.log(`::error title=KiotViet riêng tư::Ghi Supabase HTTP ${r.status}${goiY}: ${t}`)
+  }
+}
