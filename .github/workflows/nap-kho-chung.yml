@@ -38,7 +38,6 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
           VITE_GROQ_API_KEY: ${{ secrets.VITE_GROQ_API_KEY }}
-          # Giải mã bản sao KiotViet (nhánh du-lieu) → viết hồ sơ sản phẩm bán chạy trước
-          KV_MA_DU_LIEU: ${{ secrets.KV_MA_DU_LIEU }}
+          # PIN cũng dùng để đọc doanh số KiotViet (Supabase, phần riêng tư) → viết hồ sơ sản phẩm bán chạy trước
           ADMIN_PIN: ${{ secrets.MAIKA_ADMIN_PIN }}
         run: node scripts/nap-kho-chung.mjs

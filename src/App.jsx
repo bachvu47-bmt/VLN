@@ -9,7 +9,8 @@ import { laySanPhamWeb, sanSang as khoSanPhamSanSang } from './data/productStore
 import { datQuyenHocWeb, hocNen } from './services/vectorStore'
 import { batDauTheoDoi, dongBoLichNhac, xinQuyenThongBao } from './services/troLyChuDong'
 import { useToast } from './context/ToastContext'
-import { napKiotViet } from './services/kiotViet'
+import { datNguoiDungKV, napKiotViet } from './services/kiotViet'
+import { napAnhSanPham } from './services/anhSanPham'
 import { napTheCao } from './services/triThucCao'
 import { batDauJobFollowUp, SO_NGAY_FOLLOW_UP } from './services/followUpTuDong'
 import { batDauThongBaoDay } from './services/thongBaoDay'
@@ -94,10 +95,15 @@ export default function App() {
     })
   }, [user, toast])
 
-  // KiotViet (bản sao mã hoá, GitHub Actions đồng bộ ~30 phút): nạp khi đăng nhập + làm mới 15 phút/lần
+  // KiotViet (GitHub Actions đồng bộ ~30 phút): nạp khi đăng nhập + làm mới 15 phút/lần.
+  // Khách hàng & hoá đơn chỉ nạp khi người đăng nhập là Admin (đổi sang người khác → xoá khỏi RAM).
   useEffect(() => {
+    datNguoiDungKV(user?.vaiTro === 'admin')
     if (!user) return
-    const nap = () => napKiotViet().catch((e) => console.warn('[KiotViet]', e.message))
+    const nap = () => {
+      napKiotViet().catch((e) => console.warn('[KiotViet]', e.message))
+      napAnhSanPham().catch((e) => console.warn('[Ảnh sản phẩm]', e.message)) // ảnh Admin đặt cho màn Tra cứu
+    }
     nap()
     const id = setInterval(nap, 15 * 60 * 1000)
     return () => clearInterval(id)
@@ -177,10 +183,10 @@ export default function App() {
       <BottomNav tabs={TAB_LIST} active={tab} onChange={setTab} />
 
       {/* Overlays toàn màn hình */}
-      {overlay?.type === 'detail' && <ProductDetailScreen sp={overlay.data} onClose={dong} />}
+      {overlay?.type === 'detail' && <ProductDetailScreen sp={overlay.data} onClose={dong} onMo={mo} />}
       {overlay?.type === 'tuvanai' && <TuVanAIScreen onClose={dong} onMo={mo} />}
       {overlay?.type === 'tinhvattu' && <TinhVatTuScreen sp={overlay.data} onClose={dong} />}
-      {overlay?.type === 'guitailieu' && <GuiTaiLieuScreen onClose={dong} />}
+      {overlay?.type === 'guitailieu' && <GuiTaiLieuScreen onClose={dong} data={overlay.data} />}
       {overlay?.type === 'ingest' && <IngestionScreen onClose={dong} />}
       {overlay?.type === 'duyet' && <DuyetScreen onClose={dong} />}
       {overlay?.type === 'users' && <UsersScreen onClose={dong} />}

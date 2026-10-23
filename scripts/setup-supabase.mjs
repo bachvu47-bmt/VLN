@@ -8,7 +8,8 @@
 //   2) đặt PIN Admin → ghi vào .admin-pin.local (KHÔNG in ra màn hình)
 //   3) đưa GEMINI_API_KEY / GROQ_API_KEY từ .env.local vào Secrets của Supabase
 //   4) deploy hàm máy chủ "maika" (supabase/functions/maika) — app + web cùng gọi
-//   5) ghi VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY vào .env.local → tự kiểm tra
+//   5) ghi VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY vào .env.local
+//   6) bật đăng nhập Admin bằng mã email (bachvu47@gmail.com), tắt đăng ký tự do → tự kiểm tra
 // ============================================================
 import { execFileSync } from 'node:child_process'
 import { randomBytes, randomInt } from 'node:crypto'
@@ -153,6 +154,43 @@ if (existsSync(widgetPath)) {
   if (moi !== w) writeFileSync(widgetPath, moi, 'utf8')
   console.log('✓ web/maika-widget.js trỏ tới ' + `${url}/functions/v1/maika`)
 }
+
+// 6b) Đăng nhập email Admin (thay PIN trên app): mã 6 số qua email, KHÔNG cho đăng ký tự do,
+//     tạo sẵn tài khoản đã xác minh cho email Admin. Máy chủ chỉ nhận đúng email này (schema.sql: _la_email_admin).
+const EMAIL_ADMIN = 'bachvu47@gmail.com'
+await api(`/projects/${ref}/config/auth`, {
+  method: 'PATCH',
+  body: JSON.stringify({ external_email_enabled: true, disable_signup: true, mailer_otp_length: 6, mailer_otp_exp: 600 }),
+})
+// Mẫu email có MÃ 6 số: gói Free + hộp thư mặc định của Supabase KHÔNG cho sửa mẫu (email chỉ có link)
+// → khi đó app ẩn đăng nhập bằng email, Admin dùng PIN. Cấu hình SMTP riêng rồi chạy lại script là bật được.
+let coMaEmail = true
+try {
+  await api(`/projects/${ref}/config/auth`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      mailer_subjects_magic_link: 'Mã đăng nhập Admin Vật Liệu Nhà: {{ .Token }}',
+      mailer_templates_magic_link_content:
+        '<h2>Mã đăng nhập Admin</h2><p>Nhập mã này trong app Vật Liệu Nhà (Duyệt kiến thức / Tài khoản):</p>' +
+        '<p style="font-size:28px;font-weight:bold;letter-spacing:6px">{{ .Token }}</p>' +
+        '<p>Mã hết hạn sau 10 phút. Không phải bạn yêu cầu? Bỏ qua email này.</p>',
+    }),
+  })
+} catch (e) {
+  coMaEmail = false
+  console.log(`⚠ Chưa đặt được mẫu email có mã (${/free tier|custom SMTP/i.test(e.message) ? 'gói Free cần SMTP riêng' : e.message.slice(0, 120)}) — app dùng PIN Admin`)
+}
+await sql(ref, `insert into public.cau_hinh (khoa, gia_tri, cap_nhat_luc) values ('dang_nhap_email', '${coMaEmail ? '1' : '0'}', now())
+                on conflict (khoa) do update set gia_tri = excluded.gia_tri, cap_nhat_luc = now()`)
+const khoaBiMat = keys.find((x) => x.name === 'service_role') || keys.find((x) => x.type === 'secret')
+if (!khoaBiMat?.api_key) throw new Error('Không lấy được key service_role/secret để tạo tài khoản Admin')
+const taoAdmin = await fetch(`${url}/auth/v1/admin/users`, {
+  method: 'POST',
+  headers: { apikey: khoaBiMat.api_key, Authorization: `Bearer ${khoaBiMat.api_key}`, 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email: EMAIL_ADMIN, email_confirm: true }),
+})
+if (!taoAdmin.ok && taoAdmin.status !== 422) throw new Error(`Tạo tài khoản Admin lỗi HTTP ${taoAdmin.status}: ${(await taoAdmin.text()).slice(0, 200)}`)
+console.log(`✓ Tài khoản Admin ${EMAIL_ADMIN} (${taoAdmin.ok ? 'vừa tạo' : 'đã có'}) · đã tắt đăng ký tự do · đăng nhập bằng mã email: ${coMaEmail ? 'BẬT' : 'TẮT (dùng PIN)'}`)
 
 // 7) Tự kiểm tra bằng đúng key app/web sẽ dùng
 const hdr = { apikey: k.api_key, Authorization: `Bearer ${k.api_key}`, 'Content-Type': 'application/json' }

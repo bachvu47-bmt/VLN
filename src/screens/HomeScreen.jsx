@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useState } from 'react'
+import AnhSanPham from '../components/AnhSanPham'
 import { laySpGanDay } from '../data/ganDayStore'
 import { dangKyTheoDoi } from '../data/productStore'
 import { DanhSachViec, MaikaNhacHomNay, ThemViecSheet } from '../components/TroLyChuDong'
@@ -63,9 +64,7 @@ export default function HomeScreen({ onTab, onMo }) {
           <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
             {ganDay.map((sp) => (
               <button key={sp.id} onClick={() => onMo('detail', sp)} className="tap w-32 flex-shrink-0 rounded-xl border border-gray-100 bg-white p-2 text-left shadow-sm">
-                <div className={`flex h-20 items-center justify-center overflow-hidden rounded-lg ${sp.anhBg || 'bg-gray-50'}`}>
-                  {sp.anh ? <img src={sp.anh} alt="" loading="lazy" className="h-full w-full object-contain" /> : <span className="text-4xl">{sp.icon}</span>}
-                </div>
+                <AnhSanPham sp={sp} co="vua" />
                 <div className="mt-2 truncate text-sm font-bold text-gray-900">{sp.ten}</div>
                 <div className="truncate text-[11px] text-gray-500">{sp.tenNgan}</div>
               </button>

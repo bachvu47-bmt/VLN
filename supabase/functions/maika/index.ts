@@ -214,6 +214,40 @@ function ghiNhatKy(cheDo: string, lichSu: any[], triThuc: any[], text: string, t
   ;(globalThis as any).EdgeRuntime?.waitUntil?.(viec)
 }
 
+// ---------- KiotViet CÔNG KHAI cho khách web: giá bán lẻ + còn/hết hàng (không số lượng tồn) ----------
+// Tệp do GitHub Actions (kiotviet-sync.mjs) đăng 30 phút/lần; KHÔNG chứa khách hàng / hoá đơn / công nợ.
+const URL_KV_CONG_KHAI = Deno.env.get('KV_CONG_KHAI_URL') || 'https://raw.githubusercontent.com/bachvu47-bmt/VLN/du-lieu/kiotviet-cong-khai.json'
+let _kv: { d: any; luc: number } = { d: null, luc: 0 }
+async function kvCongKhai() {
+  if (_kv.d && Date.now() - _kv.luc < 10 * 60 * 1000) return _kv.d
+  try {
+    const r = await fetch(URL_KV_CONG_KHAI, { signal: AbortSignal.timeout(8000) })
+    if (r.ok) _kv = { d: await r.json(), luc: Date.now() }
+  } catch (e: any) {
+    console.warn('[maika] tải KiotViet công khai lỗi:', e.message)
+  }
+  return _kv.d
+}
+const boDauKV = (s = '') => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd')
+// Giống src/services/kiotViet.js goiYSanPhamTuCau: khớp ≥ 2 từ "có nghĩa"
+const TU_CHUNG_KV = new Set('con bao nhieu gia ton kho hang co khong cua the nao mot cai cuon thung bo tam thanh may loai'.split(' '))
+async function giaChoKhach(cau: string) {
+  const kv = await kvCongKhai()
+  const tu = [...new Set(boDauKV(cau).split(/[^a-z0-9]+/).filter((w) => w.length >= 2 && !TU_CHUNG_KV.has(w)))]
+  if (!kv?.sanPham?.length || !tu.length) return ''
+  const ds = kv.sanPham
+    .map((p: any) => ({ p, diem: tu.filter((w) => boDauKV(`${p.ten} ${p.ma}`).includes(w)).length }))
+    .filter((x: any) => x.diem >= Math.min(2, tu.length))
+    .sort((a: any, b: any) => b.diem - a.diem || b.p.ton - a.p.ton)
+    .slice(0, 6)
+  if (!ds.length) return ''
+  const luc = new Date(kv.capNhat).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })
+  // Nhãn mục khớp rutGonNguCanh (giữ trọn khi rút gọn cho Groq)
+  return `\n\nGIÁ BÁN & TỒN KHO KIOTVIET (cập nhật ${luc} — giá bán lẻ tham khảo; chỉ nói còn/hết hàng, không nêu số lượng):\n${ds
+    .map(({ p }: any) => `- ${p.ten} (mã ${p.ma}): ${(p.gia || 0).toLocaleString('vi-VN')}đ/${p.dvt} · ${p.ton > 0 ? 'còn hàng' : 'HẾT HÀNG'}`)
+    .join('\n')}`
+}
+
 // ---------- Giới hạn lượt ----------
 async function conLuot(cheDo: 'khach' | 'noi-bo', ip: string) {
   const [moiIp, tong] = GIOI_HAN[cheDo]
@@ -262,7 +296,8 @@ Deno.serve(async (req) => {
     const truyVan = cauTruyVan(lichSu)
     const triThucApp = cheDo === 'noi-bo' && Array.isArray(body?.triThuc) ? body.triThuc.slice(0, 10).map((t: any) => ({ loai: String(t?.loai || ''), tieuDe: String(t?.tieuDe || '').slice(0, 300), noiDung: String(t?.noiDung || '').slice(0, 3000), nguon: String(t?.nguon || '').slice(0, 300) })) : null
     const triThuc = triThucApp ?? (await timTriThuc(truyVan).catch((e) => (console.warn('[maika] tìm tri thức lỗi:', e.message), [])))
-    const khoNoiBo = cheDo === 'noi-bo' ? String(body?.khoNoiBo || '').slice(0, 20000) : ''
+    // App gửi kho nội bộ của máy; khách web/Zalo → máy chủ tự gắn giá bán + còn/hết hàng KiotViet công khai
+    const khoNoiBo = cheDo === 'noi-bo' ? String(body?.khoNoiBo || '').slice(0, 20000) : await giaChoKhach(truyVan)
 
     const nguCanh = { cheDo, khoNoiBo, triThuc, baiHoc: await layBaiHoc() }
     let kq = await traLoi(nguCanh, lichSu)

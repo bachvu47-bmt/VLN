@@ -341,7 +341,7 @@ export default function BaoCaoScreen({ onClose }) {
                     <p className="text-[10px] leading-relaxed text-gray-400">
                       {dongNo.nguon === 'kv'
                         ? `Công nợ theo ngày & Người nợ tổng hợp từ hoá đơn KiotViet (đồng bộ ${new Date(kv.capNhat).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}).`
-                        : 'Công nợ đang lấy từ cột "Công nợ" trên Google Sheet — nhập Mã dữ liệu cửa hàng (Tài khoản) để dùng hoá đơn KiotViet có mã đơn.'}
+                        : 'Công nợ đang lấy từ cột "Công nợ" trên Google Sheet — hoá đơn KiotViet có mã đơn chỉ hiện trên máy Admin.'}
                     </p>
                   </div>
                   {!nv && danhSachNhanVien(ds).length > 1 && <BieuDo kieu="ngang" tieuDe="Doanh thu theo nhân viên" diem={nhomTheo(ds, 'nhanVien')} donVi="vnd" />}

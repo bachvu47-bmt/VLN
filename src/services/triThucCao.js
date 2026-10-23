@@ -17,7 +17,12 @@ export const NGUON_CAO = [
   { ten: 'Jotun Việt Nam', mien: 'jotun.com/vn-vi', phamVi: 'Sơn trang trí nội/ngoại thất — trang chi tiết sản phẩm' },
   { ten: 'Maxbond', mien: 'maxbond.vn', phamVi: 'Trang sản phẩm keo dán, chống thấm Maxbond' },
 ]
-export const LICH_CAO = '5:30 và 12:30 mỗi ngày (GitHub Actions)'
+// Tin tức ngành (khớp scripts/cao-tin-tuc.mjs) — thẻ ghi thẳng vào kho chung, trạng thái chờ duyệt
+export const NGUON_TIN = [
+  { ten: 'Google News (tin tức)', mien: 'news.google.com', phamVi: 'Tìm theo từ khoá: chống thấm, sơn/keo/hoàn thiện, vật liệu mới, Sika, giá VLXD — đọc bài gốc, chỉ tin ≤ 3 ngày' },
+  { ten: 'VnExpress · Tuổi Trẻ (tin tức)', mien: 'vnexpress.net · tuoitre.vn', phamVi: 'RSS bất động sản / nhà đất, chỉ giữ tin chạm từ khoá ngành' },
+]
+export const LICH_CAO = '5:30 và 12:30 mỗi ngày; tin tức 1 lần lúc 5:30 (GitHub Actions)'
 export const URL_NGUON_THE = URL_THE
 
 let _lanCuoi = 0

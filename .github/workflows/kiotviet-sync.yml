@@ -1,6 +1,8 @@
 name: Đồng bộ KiotViet
 
-# Lấy dữ liệu KiotViet (CHỈ ĐỌC) → mã hoá → đăng lên nhánh "du-lieu" cho app tải.
+# Lấy dữ liệu KiotViet (CHỈ ĐỌC), tách 2 phần:
+#  - công khai (hàng hoá, tồn, giá bán) → nhánh "du-lieu" (kiotviet-cong-khai.json) cho app + web
+#  - riêng tư (khách hàng, hoá đơn, công nợ) → Supabase kv_rieng, CHỈ Admin đọc được
 # Key KiotViet chỉ nằm trong GitHub Secrets, không bao giờ vào app.
 # Lịch: 30 phút/lần trong giờ làm việc VN (7:00–22:30 = 0:00–15:30 UTC).
 # GitHub có thể chạy trễ 5–20 phút so với lịch khi máy chủ bận.
@@ -29,17 +31,16 @@ jobs:
         with:
           node-version: 22
 
-      - name: Lấy & mã hoá dữ liệu KiotViet
+      - name: Lấy dữ liệu KiotViet (công khai → tệp, riêng tư → Supabase)
         env:
           KV_CLIENT_ID: ${{ secrets.KV_CLIENT_ID }}
           KV_CLIENT_SECRET: ${{ secrets.KV_CLIENT_SECRET }}
-          KV_MA_DU_LIEU: ${{ secrets.KV_MA_DU_LIEU }}
           # Webhook hoá đơn → hàm "kiotviet" (Supabase) báo Admin ngay; script tự đăng ký nếu chưa có
           KV_WEBHOOK_SECRET: ${{ secrets.KV_WEBHOOK_SECRET }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-        run: |
-          mkdir -p /tmp/du-lieu
-          node scripts/kiotviet-sync.mjs /tmp/du-lieu/kiotviet.bin
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          ADMIN_PIN: ${{ secrets.MAIKA_ADMIN_PIN }}
+        run: node scripts/kiotviet-sync.mjs /tmp/du-lieu
 
       - name: Đăng lên nhánh du-lieu (1 commit duy nhất, không phình lịch sử)
         working-directory: /tmp/du-lieu
@@ -47,6 +48,6 @@ jobs:
           git init -q -b du-lieu
           git config user.name "kiotviet-sync"
           git config user.email "actions@users.noreply.github.com"
-          git add kiotviet.bin
+          git add kiotviet-cong-khai.json
           git commit -q -m "Dữ liệu KiotViet $(date -u +%Y-%m-%dT%H:%MZ)"
           git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" du-lieu

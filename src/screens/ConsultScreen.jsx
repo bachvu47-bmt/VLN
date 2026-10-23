@@ -1,10 +1,8 @@
 import { useMemo, useState } from 'react'
-import { DON_HANG } from '../data/mockData'
-import { maikaPhanTichDon } from '../services/maika'
 import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
 import { useKiotViet } from '../hooks/useKiotViet'
-import MaDuLieuCard from '../components/MaDuLieuCard'
+import KhoaKhachHang from '../components/KhoaKhachHang'
 import { aiCoCauHinh } from '../services/maikaChatbot'
 import { hoaDonGanDay, tienVN } from '../services/kiotViet'
 import { soanTinFollowUp, taoChamSocSauBan } from '../services/troLyChuDong'
@@ -138,31 +136,6 @@ function DanhSachKiotViet({ kv }) {
   )
 }
 
-// ---- Dữ liệu minh hoạ (khi máy chưa kết nối KiotViet) ----
-function CardDon({ don }) {
-  const [mo, setMo] = useState(false)
-  const buoc = maikaPhanTichDon(don)
-  return (
-    <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white opacity-70 shadow-sm">
-      <button onClick={() => setMo((v) => !v)} className="tap flex w-full items-start gap-3 p-4 text-left">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-[11px] text-gray-400">{don.maDon}</span>
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${MAU_TT[don.trangThai]}`}>{don.trangThai}</span>
-          </div>
-          <div className="mt-0.5 truncate text-sm font-bold text-gray-900">{don.khach} <span className="text-[11px] font-normal text-gray-400">(Dữ liệu minh họa)</span></div>
-          <div className="truncate text-[11px] text-gray-500">{don.sanPham.map((s) => `${s.ten} ×${s.soLuong}`).join(' · ')}</div>
-        </div>
-      </button>
-      {mo && (
-        <div className="space-y-2 border-t border-gray-100 bg-gray-50 p-4">
-          {buoc.map((b) => <p key={b.sp.ma} className="text-xs text-gray-600">• {b.noiDung}</p>)}
-        </div>
-      )}
-    </div>
-  )
-}
-
 export default function ConsultScreen({ onMo }) {
   const kv = useKiotViet()
   return (
@@ -174,14 +147,7 @@ export default function ConsultScreen({ onMo }) {
         📤 Gửi tài liệu cho khách
       </button>
 
-      {kv ? (
-        <DanhSachKiotViet kv={kv} />
-      ) : (
-        <div className="space-y-3">
-          <MaDuLieuCard gon />
-          {DON_HANG.map((don) => <CardDon key={don.id} don={don} />)}
-        </div>
-      )}
+      {kv?.coRieng ? <DanhSachKiotViet kv={kv} /> : <KhoaKhachHang />}
     </div>
   )
 }

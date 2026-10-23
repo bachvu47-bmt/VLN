@@ -150,7 +150,7 @@ async function dayBanGhiCu() {
   for (const r of cu.filter((x) => x.loai !== 'web')) {
     try {
       if (r.trangThai === 'cho_duyet') await kho.guiDeXuat(r)
-      else if (kho.layPinAdmin()) await kho.adminGhi([r])
+      else if (kho.coQuyenAdmin()) await kho.adminGhi([r])
       else continue // chưa có PIN → giữ trên máy, đẩy lên sau
       await xoaCucBo([r.id])
     } catch (e) {
@@ -294,6 +294,19 @@ export async function napTaiLieu({ tieuDe, noiDung, tags = [], nguon = '', nguoi
   })
 }
 
+// Thẻ tin tức ngành: siêu dữ liệu nằm trong tags ('tin-tuc', 'bao:…', 'ngay:YYYY-MM-DD', 'tin-cay:NN')
+export function thongTinTin(r) {
+  const tags = r?.tags || []
+  if (!tags.includes('tin-tuc')) return null
+  const lay = (k) => tags.find((t) => t.startsWith(k + ':'))?.slice(k.length + 1) || ''
+  const ngayIso = lay('ngay')
+  return {
+    bao: lay('bao') || 'báo chí',
+    ngay: ngayIso ? ngayIso.split('-').reverse().join('/') : '?',
+    doTinCay: Number(lay('tin-cay')) || 0,
+  }
+}
+
 // Admin duyệt đề xuất (có thể sửa lại câu trả lời đúng trước khi duyệt)
 export async function duyetDeXuat(id, { traLoiDung, nguoi }) {
   const cu = cache.get(id)
@@ -303,6 +316,12 @@ export async function duyetDeXuat(id, { traLoiDung, nguoi }) {
   // Thẻ cào từ nhà sản xuất: nội dung Admin đã duyệt chính là tri thức (kèm tên nguồn)
   if (cu.tuDong) {
     return ghiDaDuyet({ ...goc, trangThai: 'da_duyet', traLoiDung: dung, noiDung: `${cu.tieuDe} (theo ${cu.nguonTen})\n${dung}`, duyetBoi: nguoi, duyetLuc: Date.now() })
+  }
+  // Tin tức ngành (scripts/cao-tin-tuc.mjs ghi thẳng vào kho chung, chờ duyệt): tin có hạn dùng →
+  // ghi ngày đăng để Maika nói "theo tin ngày …", không trình bày như sự thật mới nhất
+  const tin = thongTinTin(cu)
+  if (tin) {
+    return ghiDaDuyet({ ...goc, trangThai: 'da_duyet', traLoiDung: dung, noiDung: `${cu.tieuDe} (theo ${tin.bao}, tin ngày ${tin.ngay})\n${dung}`, duyetBoi: nguoi, duyetLuc: Date.now() })
   }
   const laTriThucMedia = cu.loai === 'tai_lieu'
   const coMedia = cu.media?.length > 0
@@ -366,7 +385,7 @@ export async function xoaTriThuc(id) {
 export async function dongBoTriThucWeb(sanPhams) {
   await sanSang
   const moi = sanPhams.flatMap(doanTuSanPham)
-  if (CHUNG && !kho.layPinAdmin()) return { tongDoan: moi.length, doanMoi: 0, doanXoa: 0, boQua: true }
+  if (CHUNG && !kho.coQuyenAdmin()) return { tongDoan: moi.length, doanMoi: 0, doanXoa: 0, boQua: true }
 
   const idMoi = new Set(moi.map((r) => r.id))
   const canGhi = moi
@@ -398,7 +417,7 @@ const canHoc = (r) => r.trangThai === 'da_duyet' && !daCoVector(r) && (!CHUNG ||
 export async function hocNen() {
   if (hoc.dangHoc || !geminiCoCauHinh()) return
   await sanSang
-  if (CHUNG && !kho.layPinAdmin()) return
+  if (CHUNG && !kho.coQuyenAdmin()) return
   const hangDoi = [...cache.values()].filter(canHoc)
   if (!hangDoi.length) return
   // Ưu tiên đính chính & tài liệu admin trước dữ liệu web

@@ -2,8 +2,7 @@
 //  SẢN PHẨM TRA CỨU GẦN ĐÂY — ghi lại khi người dùng mở chi tiết SP (thay dữ liệu minh hoạ)
 //  localStorage: [id sản phẩm] mới nhất trước, tối đa 10
 // ============================================================
-import { SAN_PHAM } from './mockData'
-import { laySanPhamWeb } from './productStore'
+import { timTheoId } from '../services/traCuuSanPham'
 
 const LS_KEY = 'vln_sp_gan_day'
 const TOI_DA = 10
@@ -27,8 +26,6 @@ export function ghiSpGanDay(sp) {
 }
 
 export function laySpGanDay() {
-  const tatCa = [...laySanPhamWeb(), ...SAN_PHAM]
-  return docIds()
-    .map((id) => tatCa.find((sp) => sp.id === id))
-    .filter(Boolean)
+  // Chỉ sản phẩm thật (web + KiotViet) — id cũ của dữ liệu minh hoạ tự rơi khỏi danh sách
+  return docIds().map(timTheoId).filter(Boolean)
 }

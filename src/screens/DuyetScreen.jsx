@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
+import PinAdminCard from '../components/PinAdminCard'
 import ScreenShell from '../components/ScreenShell'
+import SuaAnhSanPham from '../components/SuaAnhSanPham'
 import TheDeXuat from '../components/TheDeXuat'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { useBoNhoMaika } from '../hooks/useBoNhoMaika'
-import { coKhoChung, layPinAdmin } from '../services/khoChung'
-import { coMaDuLieu, duLieuKV } from '../services/kiotViet'
+import { coKhoChung, coPhienAdmin, coQuyenAdmin, EMAIL_ADMIN } from '../services/khoChung'
+import { duLieuKV } from '../services/kiotViet'
 import { coNguonBaoCao } from '../services/baoCaoSheets'
-import { LICH_CAO, napTheCao, NGUON_CAO, trangThaiCao, URL_NGUON_THE } from '../services/triThucCao'
-import { danhSach, duyetDeXuat, keoKhoChung } from '../services/vectorStore'
+import { LICH_CAO, napTheCao, NGUON_CAO, NGUON_TIN, trangThaiCao, URL_NGUON_THE } from '../services/triThucCao'
+import { danhSach, duyetDeXuat, keoKhoChung, thongTinTin } from '../services/vectorStore'
 
 const NGUONG_DUYET_NHANH = 90
 
@@ -23,20 +25,22 @@ function NguonVaBaoMat({ soChoCao }) {
   const cao = trangThaiCao()
   const kv = duLieuKV()
   const chung = coKhoChung()
-  const coPin = !!layPinAdmin()
+  const coPin = coQuyenAdmin()
 
   const KHOA = [
     {
       ten: 'KiotViet (giá, tồn kho, hoá đơn, khách hàng)',
-      bat: coMaDuLieu(),
-      trangThai: coMaDuLieu() ? `Đã mở khoá trên máy này${kv?.capNhat ? ` · dữ liệu lúc ${new Date(kv.capNhat).toLocaleString('vi-VN')}` : ''}` : 'Máy này chưa nhập Mã dữ liệu cửa hàng',
-      chiTiet: 'App KHÔNG chứa key KiotViet. GitHub Actions đọc KiotViet bằng key trong GitHub Secrets rồi xuất bản sao mã hoá AES-256-GCM (khoá dẫn xuất PBKDF2-SHA256, 150.000 vòng). Máy nhân viên chỉ tải tệp đã mã hoá, giải mã trong RAM bằng "Mã dữ liệu cửa hàng" — không lưu bản giải mã xuống máy.',
+      bat: !!kv?.coRieng,
+      trangThai: kv?.coRieng
+        ? `Admin — đủ hàng hoá, hoá đơn, khách hàng · dữ liệu lúc ${new Date(kv.capNhatRieng || kv.capNhat).toLocaleString('vi-VN')}`
+        : kv ? 'Hàng hoá, tồn kho, giá bán · hoá đơn & khách hàng chưa tải (cần quyền Admin)' : 'Đang đồng bộ…',
+      chiTiet: 'App KHÔNG chứa key KiotViet. GitHub Actions kết nối KiotViet bằng key trong GitHub Secrets (30 phút/lần), tách 2 phần: hàng hoá, tồn kho, giá bán công khai cho mọi máy và Maika trên web; khách hàng, hoá đơn, công nợ lưu riêng trên máy chủ — chỉ trả cho máy đã xác thực Admin, chỉ giữ trong RAM.',
     },
     {
       ten: 'Kho tri thức chung Maika (Supabase)',
       bat: chung && coPin,
-      trangThai: !chung ? 'Chế độ lưu từng máy (chưa cấu hình kho chung)' : coPin ? 'Máy này đã xác thực PIN Admin — được ghi' : 'Chỉ đọc — nhập PIN Admin ở Tài khoản để ghi',
-      chiTiet: 'Key công khai trong app chỉ ĐỌC được. Mọi thao tác ghi (duyệt, từ chối, nạp tri thức, gán vector) đi qua hàm máy chủ admin_* — PIN được kiểm tra trên máy chủ, sai PIN thì máy tự xoá PIN đã lưu.',
+      trangThai: !chung ? 'Chế độ lưu từng máy (chưa cấu hình kho chung)' : coPin ? `Máy này đã xác thực Admin${coPhienAdmin() ? ` (${EMAIL_ADMIN})` : ' (PIN)'} — được ghi` : `Chỉ đọc — đăng nhập email ${EMAIL_ADMIN} để ghi`,
+      chiTiet: `Key công khai trong app chỉ ĐỌC được. Mọi thao tác ghi (duyệt, từ chối, nạp tri thức, gán vector) đi qua hàm máy chủ admin_* — máy chủ chỉ cho ghi khi có phiên đăng nhập đã xác minh của ${EMAIL_ADMIN} (mã gửi qua email) hoặc đúng PIN Admin dự phòng.`,
     },
     {
       ten: 'Báo cáo bán hàng (Google Sheets)',
@@ -54,7 +58,7 @@ function NguonVaBaoMat({ soChoCao }) {
           Lịch: {LICH_CAO}. Bot tự xưng "VLN-Maika-Bot", đọc sitemap, nghỉ 1,2s/trang, bỏ URL có tham số, tối đa 8 trang/nguồn/lần. Chỉ trang <b>mới</b> hoặc <b>đổi nội dung</b> (so mã băm) mới thành thẻ. Groq tóm tắt thành ý kỹ thuật kèm độ tin cậy 0–100%.
         </p>
         <div className="space-y-2">
-          {NGUON_CAO.map((n) => (
+          {[...NGUON_CAO, ...NGUON_TIN].map((n) => (
             <div key={n.ten} className="rounded-xl bg-gray-50 px-3 py-2">
               <div className="text-xs font-bold text-gray-900">{n.ten} <span className="font-normal text-gray-400">· {n.mien}</span></div>
               <div className="text-[11px] text-gray-500">{n.phamVi}</div>
@@ -103,7 +107,7 @@ export default function DuyetScreen({ onClose }) {
   const { user, laAdmin } = useAuth()
   const toast = useToast()
   const [tab, setTab] = useState('pending') // pending | nguon
-  const [loc, setLoc] = useState('tat') // tat | nv | cao
+  const [loc, setLoc] = useState('tat') // tat | nv | cao | tin
   const [dangDuyet, setDangDuyet] = useState(false)
   const [, setDaTai] = useState(0)
 
@@ -124,12 +128,17 @@ export default function DuyetScreen({ onClose }) {
 
   const choDuyet = danhSach({ trangThai: 'cho_duyet' })
   const theCao = choDuyet.filter((r) => r.tuDong)
-  const theNV = choDuyet.filter((r) => !r.tuDong)
-  const hien = loc === 'cao' ? theCao : loc === 'nv' ? theNV : choDuyet
+  const theTin = choDuyet.filter((r) => thongTinTin(r))
+  const theNV = choDuyet.filter((r) => !r.tuDong && !thongTinTin(r))
+  const hien = loc === 'cao' ? theCao : loc === 'tin' ? theTin : loc === 'nv' ? theNV : choDuyet
+  // Tin tức không bao giờ duyệt nhanh — Admin đọc từng tin
   const duyetNhanh = theCao.filter((r) => (r.doTinCay || 0) >= NGUONG_DUYET_NHANH)
+
+  const canPin = coKhoChung() && !coQuyenAdmin()
 
   const duyetHet = async () => {
     if (dangDuyet || !duyetNhanh.length) return
+    if (canPin) return toast('Xác thực máy Admin ở ô phía trên trước (chỉ 1 lần)', 'info')
     setDangDuyet(true)
     let ok = 0
     for (const r of duyetNhanh) {
@@ -146,10 +155,11 @@ export default function DuyetScreen({ onClose }) {
 
   return (
     <ScreenShell title="Duyệt kiến thức · HITL" onClose={onClose}>
-      <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-gray-100 p-1">
+      <div className="mb-4 grid grid-cols-3 gap-1 rounded-xl bg-gray-100 p-1">
         {[
-          ['pending', `Pending Cards (${choDuyet.length})`],
-          ['nguon', '🔒 Nguồn & Bảo mật'],
+          ['pending', `Pending (${choDuyet.length})`],
+          ['anh', '🖼️ Ảnh SP'],
+          ['nguon', '🔒 Nguồn'],
         ].map(([id, nhan]) => (
           <button key={id} onClick={() => setTab(id)}
             className={`tap rounded-lg py-2 text-xs font-bold ${tab === id ? 'bg-white text-brand-700 shadow-sm' : 'text-gray-500'}`}>
@@ -160,18 +170,27 @@ export default function DuyetScreen({ onClose }) {
 
       {tab === 'nguon' ? (
         <NguonVaBaoMat soChoCao={theCao.length} />
+      ) : tab === 'anh' ? (
+        <SuaAnhSanPham />
       ) : (
         <>
           <p className="mb-3 text-xs text-gray-500">
-            Thẻ chờ duyệt: tri thức Maika cào từ Sika, Jotun, Maxbond (dải public) và đề xuất của nhân viên. Phê duyệt = nạp vào bộ nhớ, Maika áp dụng ngay.{' '}
+            Thẻ chờ duyệt: tri thức Maika cào từ Sika, Jotun, Maxbond, tin tức ngành hằng ngày (dải public) và đề xuất của nhân viên. Phê duyệt = nạp vào bộ nhớ, Maika áp dụng ngay.{' '}
             <button onClick={() => setTab('nguon')} className="font-semibold text-brand-600 underline">Xem nguồn & cơ chế khoá</button>
           </p>
+
+          {canPin && (
+            <div className="mb-4">
+              <PinAdminCard gon />
+            </div>
+          )}
 
           <div className="mb-4 flex gap-1.5">
             {[
               ['tat', `Tất cả (${choDuyet.length})`],
               ['nv', `Nhân viên (${theNV.length})`],
               ['cao', `Maika cào (${theCao.length})`],
+              ['tin', `Tin tức (${theTin.length})`],
             ].map(([id, nhan]) => (
               <button key={id} onClick={() => setLoc(id)}
                 className={`tap rounded-full border px-3 py-1 text-[11px] font-semibold ${loc === id ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-gray-200 bg-white text-gray-600'}`}>
@@ -180,7 +199,7 @@ export default function DuyetScreen({ onClose }) {
             ))}
           </div>
 
-          {loc !== 'nv' && duyetNhanh.length > 1 && (
+          {(loc === 'tat' || loc === 'cao') && duyetNhanh.length > 1 && (
             <button onClick={duyetHet} disabled={dangDuyet}
               className="tap mb-4 w-full rounded-xl border border-emerald-200 bg-emerald-50 py-2.5 text-xs font-bold text-emerald-700 disabled:opacity-60">
               {dangDuyet ? '⏳ Đang duyệt…' : `✓ Duyệt nhanh ${duyetNhanh.length} thẻ cào có độ tin cậy ≥ ${NGUONG_DUYET_NHANH}%`}
@@ -191,7 +210,7 @@ export default function DuyetScreen({ onClose }) {
             <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-8 text-center">
               <div className="mb-2 text-3xl">✅</div>
               <div className="text-sm font-bold text-gray-700">Không có thẻ nào chờ duyệt</div>
-              <p className="mt-1 text-xs text-gray-400">Maika cào tri thức mới lúc 5:30 và 12:30 mỗi ngày; nhân viên gửi đề xuất từ khung chat.</p>
+              <p className="mt-1 text-xs text-gray-400">Maika cào tri thức mới lúc 5:30 và 12:30, tin tức ngành lúc 5:30 mỗi ngày; nhân viên gửi đề xuất từ khung chat.</p>
             </div>
           ) : (
             <div className="space-y-4">

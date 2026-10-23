@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import AnhSanPham from '../components/AnhSanPham'
 import { useToast } from '../context/ToastContext'
 import { ghiSpGanDay } from '../data/ganDayStore'
+import { tienVN } from '../services/kiotViet'
 
 function Ico({ d, className = 'h-5 w-5' }) {
   return (
@@ -36,7 +38,7 @@ function BoTinhNhanh({ sp }) {
   )
 }
 
-export default function ProductDetailScreen({ sp, onClose }) {
+export default function ProductDetailScreen({ sp, onClose, onMo }) {
   const [tab, setTab] = useState('Tổng quan')
   const [size, setSize] = useState(sp.quyCachMacDinh)
   const toast = useToast()
@@ -59,18 +61,22 @@ export default function ProductDetailScreen({ sp, onClose }) {
         {/* Hero */}
         <div className="flex gap-3">
           <div className="flex-shrink-0 text-center">
-            <div className={`flex h-28 w-24 items-center justify-center overflow-hidden rounded-xl border border-gray-100 ${sp.anhBg}`}>
-              {sp.anh ? (
-                <img src={sp.anh} alt={sp.ten} loading="lazy" className="h-full w-full object-contain" />
-              ) : (
-                <span className="text-5xl">{sp.icon}</span>
-              )}
-            </div>
-            <div className="mt-1 text-[9px] text-gray-400">{sp.tuWeb ? 'vatlieunha.vn' : 'Dữ liệu minh họa'}</div>
+            <AnhSanPham sp={sp} />
+            <div className="mt-1 max-w-24 truncate text-[9px] text-gray-400">{[sp.tuWeb && 'vatlieunha.vn', sp.bienThe?.length && 'KiotViet'].filter(Boolean).join(' · ')}</div>
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-black text-gray-900">{sp.ten}{!sp.tuWeb && <span className="text-brand-600">®</span>}</h1>
+            <h1 className="text-xl font-black text-gray-900">{sp.ten}</h1>
             <p className="mt-0.5 text-sm text-gray-600">{sp.tenNgan}</p>
+            {(() => {
+              const bt = sp.bienThe?.find((b) => b.nhan === size) || sp.bienThe?.[0]
+              return bt ? (
+                <div className="mt-2 flex items-center gap-3 rounded-lg bg-gray-50 px-2.5 py-1.5">
+                  <span className="text-base font-black tabular-nums text-gray-900">{bt.gia ? tienVN(bt.gia) : 'Liên hệ'}{bt.dvt && <span className="text-[11px] font-normal text-gray-400">/{bt.dvt}</span>}</span>
+                  <span className={`text-[11px] font-bold ${bt.ton > 0 ? 'text-green-700' : 'text-gray-400'}`}>{bt.ton > 0 ? `✓ Còn ${bt.ton.toLocaleString('vi-VN')}` : '✕ Hết hàng'}</span>
+                  <span className="ml-auto text-[10px] text-gray-400">mã {bt.ma}</span>
+                </div>
+              ) : null
+            })()}
             {sp.quyCach?.length > 0 && (
               <div className="mt-3">
                 <div className="mb-1 text-[11px] font-semibold text-gray-500">Chọn quy cách</div>
@@ -186,9 +192,9 @@ export default function ProductDetailScreen({ sp, onClose }) {
 
       {/* Nút cố định */}
       <div className="absolute inset-x-0 bottom-0 mx-auto max-w-md border-t border-gray-100 bg-white p-3">
-        <button onClick={() => toast('Đã tạo bộ tài liệu cho ' + sp.ten, 'success')}
+        <button onClick={() => (onMo ? onMo('guitailieu', { sp }) : toast('Mở "Gửi tài liệu cho khách" ở tab Sau bán', 'info'))}
           className="tap flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 py-3.5 text-sm font-bold text-white hover:bg-brand-700">
-          <Ico d="M8 3h8l3 3v15H5V5a2 2 0 0 1 2-2h1 M9 12h6 M9 16h4" className="h-5 w-5" /> Tạo bộ tài liệu
+          <Ico d="M8 3h8l3 3v15H5V5a2 2 0 0 1 2-2h1 M9 12h6 M9 16h4" className="h-5 w-5" /> Gửi tài liệu cho khách
         </button>
       </div>
     </div>

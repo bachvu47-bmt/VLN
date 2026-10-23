@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import AnhSanPham from '../components/AnhSanPham'
 import ScreenShell from '../components/ScreenShell'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
@@ -116,9 +117,7 @@ function MaikaAvatar({ className = 'h-8 w-8 text-xs' }) {
 function SPCard({ sp }) {
   return (
     <div className="mt-2 flex items-center gap-2 rounded-xl border border-gray-100 bg-white p-2">
-      <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg ${sp.anhBg} text-xl`}>
-        {sp.anh ? <img src={sp.anh} alt="" className="h-full w-full object-contain" /> : sp.icon}
-      </span>
+      <AnhSanPham sp={sp} co="nho" />
       <div className="min-w-0">
         <div className="truncate text-xs font-bold text-gray-900">{sp.ten} <span className="font-normal text-gray-400">· {sp.hang}</span></div>
         <div className="truncate text-[11px] text-gray-500">{sp.tenNgan}</div>

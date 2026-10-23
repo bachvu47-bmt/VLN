@@ -7,7 +7,6 @@ import { laySanPhamWeb } from '../data/productStore'
 import { useBoNhoMaika } from '../hooks/useBoNhoMaika'
 import ChangePasswordModal from '../components/ChangePasswordModal'
 import PinAdminCard from '../components/PinAdminCard'
-import MaDuLieuCard from '../components/MaDuLieuCard'
 
 function vietTat(t = '') {
   const w = t.trim().split(/\s+/)
@@ -85,8 +84,6 @@ export default function ThemScreen({ user, onMo, onCapNhat, onLogout }) {
           </button>
         ))}
       </div>
-
-      <MaDuLieuCard />
 
       {admin && <PinAdminCard />}
 

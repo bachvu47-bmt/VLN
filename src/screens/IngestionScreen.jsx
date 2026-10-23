@@ -6,7 +6,7 @@ import { useBoNhoMaika } from '../hooks/useBoNhoMaika'
 import { aiCoCauHinh, chuyenGiongNoi, docFileBase64, geminiCoCauHinh, GIOI_HAN_FILE_MB, GIOI_HAN_TAI_LEN_MB, phanTichLink, phanTichTaiLieu, taiLenGemini } from '../services/maikaChatbot'
 import { useGhiAm } from '../hooks/useGhiAm'
 import { cheDoLuuTru, danhSach, hocNen, napTaiLieu, xoaTriThuc } from '../services/vectorStore'
-import { layPinAdmin } from '../services/khoChung'
+import { coQuyenAdmin } from '../services/khoChung'
 import { luuMedia } from '../data/mediaStore'
 import TheDeXuat from '../components/TheDeXuat'
 import { dongBoVaHoc } from '../services/webSyncService'
@@ -71,7 +71,7 @@ function TheBoNho() {
         <span className="text-sm font-black text-gray-900">
           🧠 Bộ nhớ Maika
           <span className="ml-1 text-[10px] font-semibold text-gray-500">
-            {cheDoLuuTru() === 'chung' ? (layPinAdmin() ? '· Kho chung (Admin)' : '· Kho chung — chưa nhập PIN') : '· Lưu trên máy này'}
+            {cheDoLuuTru() === 'chung' ? (coQuyenAdmin() ? '· Kho chung (Admin)' : '· Kho chung — chưa xác thực Admin') : '· Lưu trên máy này'}
           </span>
         </span>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${geminiCoCauHinh() ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>

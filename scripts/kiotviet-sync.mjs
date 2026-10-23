@@ -1,21 +1,26 @@
 // ============================================================
-//  ĐỒNG BỘ KIOTVIET → bản sao MÃ HOÁ cho app (chạy trên GitHub Actions)
+//  ĐỒNG BỘ KIOTVIET (chạy trên GitHub Actions, 30 phút/lần) — kết nối ở cấp hệ thống,
+//  không ai phải nhập gì trên app.
 //  - Key KiotViet (toàn quyền) chỉ nằm trong GitHub Secrets, KHÔNG bao giờ vào app.
-//  - Chỉ ĐỌC: hàng hoá + tồn kho + giá, hoá đơn 180 ngày, khách hàng.
-//  - Gzip + AES-256-GCM, khoá dẫn xuất PBKDF2 từ "Mã dữ liệu cửa hàng"
-//    (nhân viên nhập 1 lần trên máy) → file .apk công khai không giải mã được.
-//  Định dạng: "VLN1" | salt(16) | iv(12) | ciphertext+tag
-//  Dùng: KV_CLIENT_ID=… KV_CLIENT_SECRET=… KV_MA_DU_LIEU=… node scripts/kiotviet-sync.mjs <file-ra>
+//  - Chỉ ĐỌC KiotViet. Tách 2 phần:
+//    · CÔNG KHAI: hàng hoá + tồn kho + giá bán → <thư-mục-ra>/kiotviet-cong-khai.json
+//      (nhánh du-lieu) → mọi máy app + Maika trên web tự tải.
+//    · RIÊNG TƯ — CHỈ ADMIN: hoá đơn 180 ngày + khách hàng (tên, SĐT, địa chỉ, công nợ)
+//      → bảng kv_rieng trên Supabase (admin_ghi_kiotviet, PIN). App chỉ đọc được khi là Admin.
+//  Dùng: KV_CLIENT_ID=… KV_CLIENT_SECRET=… VITE_SUPABASE_URL=… VITE_SUPABASE_ANON_KEY=… ADMIN_PIN=…
+//        node scripts/kiotviet-sync.mjs <thư-mục-ra>
 // ============================================================
-import { createCipheriv, createHash, pbkdf2Sync, randomBytes } from 'node:crypto'
-import { writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
 
-const { KV_CLIENT_ID, KV_CLIENT_SECRET, KV_MA_DU_LIEU } = process.env
-const RA = process.argv[2] || 'kiotviet.bin'
+const { KV_CLIENT_ID, KV_CLIENT_SECRET, VITE_SUPABASE_ANON_KEY, ADMIN_PIN } = process.env
+const RA = process.argv[2] || 'du-lieu'
 const SO_NGAY_HOA_DON = 180
-const VONG_PBKDF2 = 150000 // app dùng đúng số vòng này
-if (!KV_CLIENT_ID || !KV_CLIENT_SECRET || !KV_MA_DU_LIEU) throw new Error('Thiếu KV_CLIENT_ID / KV_CLIENT_SECRET / KV_MA_DU_LIEU')
+if (!KV_CLIENT_ID || !KV_CLIENT_SECRET) throw new Error('Thiếu KV_CLIENT_ID / KV_CLIENT_SECRET')
+const KHO = (process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '')
+if (!KHO || !VITE_SUPABASE_ANON_KEY || !ADMIN_PIN) throw new Error('Thiếu VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY / ADMIN_PIN (phần riêng tư lưu trên Supabase)')
 
 const tk = await (await fetch('https://id.kiotviet.vn/connect/token', {
   method: 'POST',
@@ -113,12 +118,19 @@ const khach = (await layHet('/customers?orderBy=createdDate&orderDirection=Desc'
   tao: c.createdDate,
 }))
 
-const duLieu = { capNhat: new Date().toISOString(), retailer, chiNhanh, sanPham, hoaDon, khach }
-const goc = gzipSync(Buffer.from(JSON.stringify(duLieu)), { level: 9 })
-const salt = randomBytes(16)
-const iv = randomBytes(12)
-const khoa = pbkdf2Sync(KV_MA_DU_LIEU, salt, VONG_PBKDF2, 32, 'sha256')
-const c = createCipheriv('aes-256-gcm', khoa, iv)
-const ma = Buffer.concat([c.update(goc), c.final(), c.getAuthTag()]) // WebCrypto: tag nối cuối ciphertext
-writeFileSync(RA, Buffer.concat([Buffer.from('VLN1'), salt, iv, ma]))
-console.log(`✓ ${sanPham.length} hàng hoá · ${hoaDon.length} hoá đơn (${SO_NGAY_HOA_DON} ngày) · ${khach.length} khách → ${RA} (${(goc.length / 1024).toFixed(0)}KB nén)`)
+const capNhat = new Date().toISOString()
+
+// Phần RIÊNG TƯ → Supabase trước: lỗi thì dừng, không đăng bản công khai lệch giờ với bản riêng
+const rieng = gzipSync(Buffer.from(JSON.stringify({ capNhat, hoaDon, khach })), { level: 9 })
+const r = await fetch(`${KHO}/rest/v1/rpc/admin_ghi_kiotviet`, {
+  method: 'POST',
+  headers: { apikey: VITE_SUPABASE_ANON_KEY, Authorization: `Bearer ${VITE_SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
+  body: JSON.stringify({ p_pin: ADMIN_PIN, p_du_lieu: rieng.toString('base64') }),
+})
+if (!r.ok) throw new Error(`Ghi phần riêng tư lên Supabase lỗi HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`)
+
+// Phần CÔNG KHAI → tệp JSON cho mọi máy + web (không có khách hàng, hoá đơn, công nợ)
+mkdirSync(RA, { recursive: true })
+writeFileSync(join(RA, 'kiotviet-cong-khai.json'), JSON.stringify({ capNhat, retailer, chiNhanh, sanPham }))
+console.log(`✓ Công khai: ${sanPham.length} hàng hoá → ${join(RA, 'kiotviet-cong-khai.json')}`)
+console.log(`✓ Riêng tư (chỉ Admin): ${hoaDon.length} hoá đơn (${SO_NGAY_HOA_DON} ngày) · ${khach.length} khách → Supabase (${(rieng.length / 1024).toFixed(0)}KB nén)`)

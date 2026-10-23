@@ -5,7 +5,8 @@
 //  JS thuần, không dùng import.meta / API riêng của trình duyệt hay Deno.
 //
 //  cheDo: 'noi-bo' — nhân viên trong app (được thấy giá & tồn KiotViet, gợi ý bán hàng)
-//         'khach'  — khách trên web (chỉ tri thức công khai, xưng "mình", không báo giá)
+//         'khach'  — khách trên web (chỉ tri thức công khai, xưng "mình"; giá bán lẻ + còn/hết hàng
+//                    từ KiotViet công khai, không số lượng tồn, không khách hàng/hoá đơn)
 // ============================================================
 
 // Gemini: model dự phòng xếp mạnh → nhẹ (Google hay gỡ model cũ 404 / quá tải 503 / hết quota 429)
@@ -84,7 +85,8 @@ CÁCH XƯNG HÔ: luôn xưng "mình", gọi khách là "anh/chị" (KHÔNG dùng
 
 NGUYÊN TẮC TRẢ LỜI:
 ${NGUYEN_TAC_CHUNG}
-- GIÁ, TỒN KHO, KHUYẾN MÃI, PHÍ VẬN CHUYỂN: KHÔNG nêu con số. Mời khách gọi hotline 0947 844 446 hoặc nhắn Zalo Vật Liệu Nhà để nhận báo giá chính xác.
+- GIÁ & CÒN HÀNG: chỉ nói theo mục "GIÁ BÁN & TỒN KHO KIOTVIET" — giá bán lẻ niêm yết (ghi "giá tham khảo, cập nhật lúc …") và còn hàng / hết hàng; KHÔNG nêu số lượng tồn kho. Không có mục đó / không có đúng sản phẩm khách hỏi → không nêu con số, mời gọi hotline.
+- KHUYẾN MÃI, GIÁ SỈ, CHIẾT KHẤU, PHÍ VẬN CHUYỂN: KHÔNG nêu con số. Mời khách gọi hotline 0947 844 446 hoặc nhắn Zalo Vật Liệu Nhà để nhận báo giá chính xác.
 - KHÔNG nhắc tới nội dung chỉ dành cho nhân viên: gợi ý bán kèm, chiến thuật chốt đơn, tên nhân viên, công nợ, thông tin khách hàng khác. Các ý "Áp dụng cho Vật Liệu Nhà" chỉ dùng để tư vấn đúng sản phẩm, không đọc nguyên văn.
 - Vấn đề có nguy cơ an toàn kết cấu (nứt xuyên dầm/cột, võng sàn, nứt rộng > 2 mm, tường nghiêng) → khuyên mời kỹ sư khảo sát trực tiếp, đưa hotline.
 - Không bàn chuyện ngoài lĩnh vực vật liệu xây dựng / sửa chữa nhà; khách hỏi lạc đề thì lịch sự kéo về chủ đề công trình.
@@ -115,7 +117,7 @@ TRI THỨC TRUY XUẤT TỪ BỘ NHỚ (liên quan nhất tới câu hỏi):
 ${thamKhao.map((t, i) => `[T${i + 1}] ${t.tieuDe}\n${t.noiDung}${LINK_HOP_LE.test(t.nguon || '') && !t.noiDung.includes(t.nguon) ? `\nLink: ${t.nguon}` : ''}`).join('\n\n')}
 `
     : ''
-}${khoNoiBo ? `\nKHO SẢN PHẨM NỘI BỘ:\n${khoNoiBo}` : ''}`
+}${khoNoiBo ? `\n${cheDo === 'khach' ? 'HÀNG HOÁ CỬA HÀNG (công khai, được báo cho khách)' : 'KHO SẢN PHẨM NỘI BỘ'}:\n${khoNoiBo}` : ''}`
 }
 
 // ---------- TỰ SOÁT (máy chủ dùng trước khi gửi, job đêm dùng khi chấm bài) ----------

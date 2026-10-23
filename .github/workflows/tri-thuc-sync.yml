@@ -3,6 +3,7 @@ name: Cào tri thức nhà sản xuất
 # Sitemap Sika / Jotun / Maxbond → trang mới hoặc đổi nội dung → Groq tóm tắt
 # thành thẻ tri thức → nhánh "tri-thuc" (tri-thuc-moi.json). App Admin nhận thẻ vào
 # hàng chờ duyệt; duyệt xong Maika mới học (HITL).
+# Kèm tin tức ngành (cao-tin-tuc.mjs) 1 lần/ngày → bảng tri_thuc trạng thái cho_duyet.
 # Lịch: 2 lần/ngày — 5:30 và 12:30 giờ VN (22:30 và 5:30 UTC).
 on:
   schedule:
@@ -53,6 +54,17 @@ jobs:
           ADMIN_PIN: ${{ secrets.MAIKA_ADMIN_PIN }}
           GIOI_HAN_MOI_NGUON: ${{ github.event.inputs.gioi_han || '8' }}
         run: node scripts/cao-tri-thuc.mjs /tmp/tri-thuc
+
+      # Tin tức ngành: 1 lần/ngày (script tự bỏ qua nếu hôm nay đã cào) → bảng tri_thuc, chờ Admin duyệt.
+      # Lỗi nguồn tin không được làm hỏng việc đăng trạng thái cào nhà sản xuất ở bước sau.
+      - name: Cào tin tức ngành
+        continue-on-error: true
+        env:
+          GROQ_API_KEY: ${{ secrets.VITE_GROQ_API_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          ADMIN_PIN: ${{ secrets.MAIKA_ADMIN_PIN }}
+        run: node scripts/cao-tin-tuc.mjs /tmp/tri-thuc
 
       - name: Đăng lên nhánh tri-thuc (1 commit duy nhất)
         working-directory: /tmp/tri-thuc

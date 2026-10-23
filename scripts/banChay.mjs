@@ -1,42 +1,41 @@
 // ============================================================
 //  SẢN PHẨM BÁN CHẠY (KiotViet 180 ngày) → điểm ưu tiên cho từng sản phẩm trên vatlieunha.vn
-//  Đọc bản sao MÃ HOÁ do kiotviet-sync.yml đăng ở nhánh du-lieu, giải mã bằng KV_MA_DU_LIEU
-//  (chỉ có trong GitHub Secrets). Chỉ dùng tổng doanh số theo tên hàng — không in, không lưu
-//  hoá đơn / khách hàng. Thiếu mã hoặc lỗi → trả Map rỗng (giữ thứ tự cũ).
+//  Đọc phần RIÊNG TƯ do kiotviet-sync.mjs lưu trên Supabase (admin_doc_kiotviet, cần PIN Admin —
+//  chỉ có trong GitHub Secrets). Chỉ dùng tổng doanh số theo tên hàng — không in, không lưu
+//  hoá đơn / khách hàng. Thiếu PIN hoặc lỗi → trả Map rỗng (giữ thứ tự cũ).
 // ============================================================
-import { createDecipheriv, pbkdf2Sync } from 'node:crypto'
 import { gunzipSync } from 'node:zlib'
-
-const URL_BAN_SAO = 'https://raw.githubusercontent.com/bachvu47-bmt/VLN/du-lieu/kiotviet.bin'
-const VONG_PBKDF2 = 150000 // giống kiotviet-sync.mjs
 
 const BO_DAU = (s = '') => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').toLowerCase()
 const TU_CHUNG = new Set('va cho cua loai mau tam thanh san go nhua son mm cm m m2 kg lit l bo hop cuon thung bao cay vien chiec'.split(' '))
 const tuCua = (s) => new Set(BO_DAU(s).split(/[^a-z0-9]+/).filter((w) => w.length >= 2 && !TU_CHUNG.has(w)))
 
-async function docBanSao(ma) {
-  const r = await fetch(URL_BAN_SAO, { signal: AbortSignal.timeout(60000) })
-  if (!r.ok) throw new Error(`tải bản sao KiotViet HTTP ${r.status}`)
-  const b = Buffer.from(await r.arrayBuffer())
-  if (b.subarray(0, 4).toString() !== 'VLN1') throw new Error('bản sao KiotViet sai định dạng')
-  const salt = b.subarray(4, 20)
-  const iv = b.subarray(20, 32)
-  const than = b.subarray(32)
-  const d = createDecipheriv('aes-256-gcm', pbkdf2Sync(ma, salt, VONG_PBKDF2, 32, 'sha256'), iv)
-  d.setAuthTag(than.subarray(than.length - 16))
-  return JSON.parse(gunzipSync(Buffer.concat([d.update(than.subarray(0, than.length - 16)), d.final()])).toString())
+async function docBanSao(pin) {
+  const kho = (process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '')
+  const key = process.env.VITE_SUPABASE_ANON_KEY || ''
+  if (!kho || !key) throw new Error('thiếu VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY')
+  const r = await fetch(`${kho}/rest/v1/rpc/admin_doc_kiotviet`, {
+    method: 'POST',
+    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_pin: pin }),
+    signal: AbortSignal.timeout(60000),
+  })
+  if (!r.ok) throw new Error(`đọc KiotViet riêng tư HTTP ${r.status}`)
+  const b64 = (await r.json())?.[0]?.du_lieu
+  if (!b64) throw new Error('chưa có bản đồng bộ KiotViet')
+  return JSON.parse(gunzipSync(Buffer.from(b64, 'base64')).toString())
 }
 
 // sanPhamWeb: [{ id, ten }] → Map(id → doanh số 180 ngày, đã quy về VNĐ) — khớp tên theo từ chung
-export async function diemBanChay(sanPhamWeb, ma = process.env.KV_MA_DU_LIEU) {
+export async function diemBanChay(sanPhamWeb, pin = process.env.ADMIN_PIN) {
   const diem = new Map()
-  if (!ma) {
-    console.log('⚠ Thiếu KV_MA_DU_LIEU — chưa xếp theo doanh số KiotViet')
+  if (!pin) {
+    console.log('⚠ Thiếu ADMIN_PIN — chưa xếp theo doanh số KiotViet')
     return diem
   }
   let duLieu
   try {
-    duLieu = await docBanSao(ma)
+    duLieu = await docBanSao(pin)
   } catch (e) {
     console.log(`⚠ Không đọc được doanh số KiotViet (${e.message}) — giữ thứ tự cũ`)
     return diem

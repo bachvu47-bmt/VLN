@@ -1,18 +1,30 @@
 // ============================================================
-//  KIOTVIET (chỉ đọc) — bản sao mã hoá do GitHub Actions đồng bộ ~30 phút/lần
-//  App KHÔNG giữ key KiotViet. Tải file .bin công khai → giải mã bằng
-//  "Mã dữ liệu cửa hàng" (Admin cấp, nhập 1 lần/máy) → hàng hoá, tồn kho, giá,
-//  hoá đơn 180 ngày, khách hàng.
+//  KIOTVIET (chỉ đọc) — GitHub Actions kết nối KiotViet ở cấp hệ thống ~30 phút/lần,
+//  không máy nào phải nhập mã. Dữ liệu tách 2 phần:
+//  · CÔNG KHAI — hàng hoá, tồn kho, giá bán: mọi máy tự tải (nhánh du-lieu).
+//  · RIÊNG TƯ — khách hàng, hoá đơn, công nợ: CHỈ Admin. Máy chủ (Supabase) chỉ trả khi máy có
+//    quyền Admin (phiên email Admin / PIN); chỉ giữ trong RAM, không lưu xuống máy.
 // ============================================================
 import { idbGet, idbPut, STORE_KV } from '../data/idb'
+import { coKhoChung, coQuyenAdmin, docKiotVietRieng } from './khoChung'
 
-const URL_DU_LIEU = import.meta.env.VITE_KV_DATA_URL || 'https://raw.githubusercontent.com/bachvu47-bmt/VLN/du-lieu/kiotviet.bin'
-const LS_MA = 'vln_ma_du_lieu'
-const KEY_CACHE = 'vln_kv_bin' // lưu bản MÃ HOÁ (không lưu bản giải mã xuống máy)
-const VONG_PBKDF2 = 150000 // khớp scripts/kiotviet-sync.mjs
+const URL_CONG_KHAI = import.meta.env.VITE_KV_DATA_URL || 'https://raw.githubusercontent.com/bachvu47-bmt/VLN/du-lieu/kiotviet-cong-khai.json'
+const KEY_CACHE = 'vln_kv_cong_khai'
 const TUOI_CACHE_MS = 10 * 60 * 1000
 
-let _duLieu = null // bản giải mã trong RAM của phiên
+// Dọn dấu vết cơ chế cũ ("Mã dữ liệu cửa hàng" + bản mã hoá trên máy)
+try {
+  localStorage.removeItem('vln_ma_du_lieu')
+} catch {
+  /* bỏ qua */
+}
+idbPut(STORE_KV, null, 'vln_kv_bin').catch(() => {})
+
+let _congKhai = null // { capNhat, chiNhanh, sanPham }
+let _rieng = null // { capNhat, hoaDon, khach } — chỉ máy Admin, chỉ trong RAM
+let _duLieu = null
+let _dangDongBo = false
+let _laAdmin = false // người đang đăng nhập app là Admin (App.jsx đặt) — máy chủ vẫn tự kiểm tra lại
 let listeners = []
 const baoThayDoi = () => listeners.forEach((f) => f())
 
@@ -23,96 +35,78 @@ export function dangKyTheoDoi(fn) {
   }
 }
 
-export function layMaDuLieu() {
-  try {
-    return localStorage.getItem(LS_MA) || ''
-  } catch {
-    return ''
-  }
-}
-
-export function coMaDuLieu() {
-  return !!layMaDuLieu()
-}
-
+// { capNhat, chiNhanh, sanPham, hoaDon, khach, coRieng } — hoaDon/khach rỗng nếu máy không phải Admin
 export function duLieuKV() {
   return _duLieu
 }
+export const dangDongBoKV = () => _dangDongBo
 
-// ---- Giải mã: "VLN1" | salt16 | iv12 | ciphertext+tag ----
-async function giaiMa(buf, ma) {
-  const b = new Uint8Array(buf)
-  if (String.fromCharCode(...b.slice(0, 4)) !== 'VLN1') throw new Error('Tệp dữ liệu KiotViet không hợp lệ')
-  const salt = b.slice(4, 20)
-  const iv = b.slice(20, 32)
-  const goc = await crypto.subtle.importKey('raw', new TextEncoder().encode(ma), 'PBKDF2', false, ['deriveKey'])
-  const khoa = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: VONG_PBKDF2, hash: 'SHA-256' }, goc, { name: 'AES-GCM', length: 256 }, false, ['decrypt'])
-  let nen
-  try {
-    nen = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, khoa, b.slice(32))
-  } catch {
-    throw new Error('Mã dữ liệu cửa hàng không đúng')
+// Gọi khi đổi người đăng nhập: không phải Admin → bỏ ngay khách hàng & hoá đơn khỏi RAM
+// (phiên email Admin gắn với máy, nhân viên dùng chung máy Admin cũng không thấy)
+export function datNguoiDungKV(laAdmin) {
+  _laAdmin = !!laAdmin
+  if (!_laAdmin && _rieng) {
+    _rieng = null
+    ghep()
   }
-  const giai = new Blob([nen]).stream().pipeThrough(new DecompressionStream('gzip'))
-  return JSON.parse(await new Response(giai).text())
 }
 
-async function taiBin() {
-  // Thêm mốc 5 phút vào URL để không dính bản cache cũ của CDN
-  const res = await fetch(`${URL_DU_LIEU}?t=${Math.floor(Date.now() / 300000)}`)
+function ghep() {
+  _duLieu = _congKhai
+    ? { ..._congKhai, hoaDon: _rieng?.hoaDon || [], khach: _rieng?.khach || [], coRieng: !!_rieng, capNhatRieng: _rieng?.capNhat || '' }
+    : null
+  baoThayDoi()
+}
+
+async function taiCongKhai() {
+  // Mốc 5 phút trong URL để không dính bản cache cũ của CDN
+  const res = await fetch(`${URL_CONG_KHAI}?t=${Math.floor(Date.now() / 300000)}`)
   if (!res.ok) throw new Error(res.status === 404 ? 'Chưa có dữ liệu KiotViet (đồng bộ chưa chạy)' : 'HTTP ' + res.status)
-  return res.arrayBuffer()
+  return res.json()
 }
 
-// Lưu mã sau khi thử giải mã thành công
-export async function luuMaDuLieu(ma) {
-  const buf = await taiBin()
-  const d = await giaiMa(buf, ma.trim())
-  try {
-    localStorage.setItem(LS_MA, ma.trim())
-  } catch {
-    /* bỏ qua */
-  }
-  await idbPut(STORE_KV, { luc: Date.now(), buf }, KEY_CACHE).catch(() => {})
-  _duLieu = d
-  baoThayDoi()
-  return d
+async function giaiNen(b64) {
+  const bin = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+  const s = new Blob([bin]).stream().pipeThrough(new DecompressionStream('gzip'))
+  return JSON.parse(await new Response(s).text())
 }
 
-export function xoaMaDuLieu() {
-  try {
-    localStorage.removeItem(LS_MA)
-  } catch {
-    /* bỏ qua */
-  }
-  _duLieu = null
-  baoThayDoi()
-}
-
-// Nạp dữ liệu: bản lưu trên máy (mở app nhanh, dùng được khi mất mạng) → làm mới nếu cũ
+// Nạp dữ liệu: bản công khai lưu trên máy (mở app nhanh, dùng được khi mất mạng) → làm mới nếu cũ;
+// máy Admin tải thêm phần riêng tư từ máy chủ.
 export async function napKiotViet({ batBuoc = false } = {}) {
-  const ma = layMaDuLieu()
-  if (!ma) return null
-  const cache = await idbGet(STORE_KV, KEY_CACHE).catch(() => null)
-  if (cache?.buf && !_duLieu) {
-    try {
-      _duLieu = await giaiMa(cache.buf, ma)
-      baoThayDoi()
-    } catch {
-      /* bản lưu hỏng / mã đổi → tải mới */
-    }
-  }
-  if (!batBuoc && cache && Date.now() - cache.luc < TUOI_CACHE_MS && _duLieu) return _duLieu
+  _dangDongBo = true
+  baoThayDoi()
   try {
-    const buf = await taiBin()
-    _duLieu = await giaiMa(buf, ma)
-    await idbPut(STORE_KV, { luc: Date.now(), buf }, KEY_CACHE).catch(() => {})
+    const cache = await idbGet(STORE_KV, KEY_CACHE).catch(() => null)
+    if (cache?.d && !_congKhai) {
+      _congKhai = cache.d
+      ghep()
+    }
+    if (batBuoc || !cache || Date.now() - cache.luc >= TUOI_CACHE_MS) {
+      try {
+        _congKhai = await taiCongKhai()
+        await idbPut(STORE_KV, { luc: Date.now(), d: _congKhai }, KEY_CACHE).catch(() => {})
+      } catch (e) {
+        if (!_congKhai) throw e
+        console.warn('[KiotViet] Làm mới lỗi, dùng bản lưu:', e.message)
+      }
+    }
+    if (_laAdmin && coKhoChung() && coQuyenAdmin()) {
+      try {
+        const b64 = await docKiotVietRieng()
+        _rieng = b64 ? await giaiNen(b64) : null
+      } catch (e) {
+        console.warn('[KiotViet] Chưa tải được phần riêng tư:', e.message)
+      }
+    } else {
+      _rieng = null // máy mất quyền Admin → bỏ khỏi RAM ngay
+    }
+    ghep()
+    return _duLieu
+  } finally {
+    _dangDongBo = false
     baoThayDoi()
-  } catch (e) {
-    if (!_duLieu) throw e // không có bản nào dùng được
-    console.warn('[KiotViet] Làm mới lỗi, dùng bản lưu:', e.message)
   }
-  return _duLieu
 }
 
 // ============================================================
@@ -152,9 +146,11 @@ export function goiYSanPhamTuCau(cau, n = 6) {
     .map((x) => x.p)
 }
 
+// ---- Phần dưới đây dùng dữ liệu RIÊNG TƯ: máy không phải Admin luôn nhận rỗng / null ----
+
 // Hoá đơn N ngày gần nhất tính theo ngày lịch (1 = từ 0h hôm nay)
 export function hoaDonGanDay(soNgay = 14) {
-  if (!_duLieu) return []
+  if (!_duLieu?.coRieng) return []
   const dau = new Date()
   dau.setHours(0, 0, 0, 0)
   const moc = dau.getTime() - (soNgay - 1) * 864e5
@@ -162,7 +158,7 @@ export function hoaDonGanDay(soNgay = 14) {
 }
 
 export function timKhach(q, n = 50) {
-  if (!_duLieu) return []
+  if (!_duLieu?.coRieng) return []
   const k = boDau(q.trim())
   const so = q.replace(/\D/g, '')
   return _duLieu.khach
@@ -171,19 +167,19 @@ export function timKhach(q, n = 50) {
 }
 
 export function lichSuMua(maKH) {
-  if (!_duLieu || !maKH) return []
+  if (!_duLieu?.coRieng || !maKH) return []
   return _duLieu.hoaDon.filter((h) => h.maKH === maKH)
 }
 
 export const tienVN = (n) => (n || 0).toLocaleString('vi-VN') + 'đ'
 
 // ============================================================
-//  CÔNG NỢ & THANH TOÁN cho màn Báo cáo (nguồn chuẩn: hoá đơn KiotViet)
+//  CÔNG NỢ & THANH TOÁN cho màn Báo cáo (nguồn chuẩn: hoá đơn KiotViet — chỉ Admin)
 // ============================================================
 
-// Hoá đơn còn nợ (tổng − đã trả > 0) → cùng dạng dòng báo cáo Sheet; null nếu máy chưa mở KiotViet
+// Hoá đơn còn nợ (tổng − đã trả > 0) → cùng dạng dòng báo cáo Sheet; null nếu máy không có phần riêng tư
 export function hoaDonConNo() {
-  if (!_duLieu) return null
+  if (!_duLieu?.coRieng) return null
   return _duLieu.hoaDon
     .map((h) => ({
       thoiGian: Date.parse(h.ngay),
@@ -199,7 +195,7 @@ export function hoaDonConNo() {
 
 // Tổng dư nợ hiện tại của mọi khách (theo sổ KiotViet)
 export function tongDuNoKhach() {
-  if (!_duLieu) return null
+  if (!_duLieu?.coRieng) return null
   return _duLieu.khach.reduce((s, c) => s + Math.max(0, c.no || 0), 0)
 }
 
@@ -207,7 +203,7 @@ export function tongDuNoKhach() {
 // h.ttoan: [[phương thức KiotViet, số tiền], ...] vd [['Cash', 500000], ['Transfer', 1200000]]
 // (h.tt là trạng thái hoá đơn dạng chuỗi — không nhầm)
 export function thanhToanHoaDon(tu, den, nhanVien) {
-  if (!_duLieu?.hoaDon.some((h) => Array.isArray(h.ttoan))) return null
+  if (!_duLieu?.coRieng || !_duLieu.hoaDon.some((h) => Array.isArray(h.ttoan))) return null
   const kq = { tienMat: 0, chuyenKhoan: 0, khac: 0 }
   for (const h of _duLieu.hoaDon) {
     const t = Date.parse(h.ngay)

@@ -65,10 +65,29 @@ language sql stable security definer set search_path = public, extensions as $$
 $$;
 revoke all on function public._pin_dung(text) from public, anon, authenticated;
 
+-- Email Admin mặc định: phiên Supabase Auth (JWT do máy chủ ký) của email này, đã xác minh bằng mã gửi
+-- qua email = quyền Admin, không cần PIN. PIN vẫn dùng được (GitHub Actions, script, máy chưa đăng nhập email).
+create or replace function public._la_email_admin() returns boolean
+language sql stable security definer set search_path = public, auth as $$
+  select coalesce(auth.jwt() ->> 'role', '') = 'authenticated'
+     and lower(coalesce(auth.jwt() ->> 'email', '')) = 'bachvu47@gmail.com'
+     and exists (select 1 from auth.users u where u.id = auth.uid() and u.email_confirmed_at is not null);
+$$;
+revoke all on function public._la_email_admin() from public, anon, authenticated;
+
+-- App hỏi: phiên đăng nhập email hiện tại có phải Admin không
+create or replace function public.la_admin() returns boolean
+language sql stable security definer set search_path = public as $$
+  select public._la_email_admin();
+$$;
+
 create or replace function public._bat_pin(p_pin text) returns void
 language plpgsql stable security definer set search_path = public, extensions as $$
 begin
-  if not public._pin_dung(p_pin) then
+  if public._la_email_admin() then
+    return;
+  end if;
+  if not public._pin_dung(coalesce(p_pin, '')) then
     raise exception 'Sai mã PIN Admin' using errcode = '28000';
   end if;
 end $$;
@@ -307,7 +326,7 @@ revoke all on public.thiet_bi from anon, authenticated;
 
 create or replace function public.dang_ky_thiet_bi(p_token text, p_ten text, p_nen_tang text, p_pin text default null)
 returns boolean language plpgsql security definer set search_path = public, extensions as $$
-declare ad boolean := coalesce(p_pin, '') <> '' and public._pin_dung(p_pin);
+declare ad boolean := public._la_email_admin() or (coalesce(p_pin, '') <> '' and public._pin_dung(p_pin));
 begin
   if length(coalesce(p_token, '')) < 20 or length(p_token) > 4096 then
     raise exception 'Token thiết bị không hợp lệ';
@@ -327,7 +346,69 @@ create table if not exists public.hoa_don_da_bao (
 alter table public.hoa_don_da_bao enable row level security;
 revoke all on public.hoa_don_da_bao from anon, authenticated;
 
-grant execute on function public.kiem_tra_pin(text), public.de_xuat_sua_sai(text, text, text, text, text),
+-- ---------- Ảnh sản phẩm do Admin đặt (thay ảnh thiếu/sai trên web & KiotViet) ----------
+-- khoa = id thẻ Tra cứu ('wc-123' sản phẩm web, 'kv-…' hàng chỉ có trên KiotViet). Mọi máy đọc; chỉ Admin ghi.
+create table if not exists public.anh_san_pham (
+  khoa     text primary key,
+  url      text not null,
+  cap_nhat timestamptz not null default now()
+);
+alter table public.anh_san_pham enable row level security;
+drop policy if exists anh_san_pham_doc on public.anh_san_pham;
+create policy anh_san_pham_doc on public.anh_san_pham for select to anon, authenticated using (true);
+revoke insert, update, delete on public.anh_san_pham from anon, authenticated;
+
+-- p_url rỗng = xoá ảnh đã đặt (quay về ảnh web / KiotViet / logo)
+create or replace function public.admin_dat_anh(p_pin text, p_khoa text, p_url text) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform public._bat_pin(p_pin);
+  if length(coalesce(p_khoa, '')) = 0 or length(p_khoa) > 200 then
+    raise exception 'Mã sản phẩm không hợp lệ';
+  end if;
+  if coalesce(p_url, '') = '' then
+    delete from public.anh_san_pham where khoa = p_khoa;
+    return;
+  end if;
+  if p_url !~ '^https://' or length(p_url) > 1000 then
+    raise exception 'Link ảnh phải bắt đầu bằng https:// (tối đa 1000 ký tự)';
+  end if;
+  insert into public.anh_san_pham (khoa, url, cap_nhat) values (p_khoa, p_url, now())
+  on conflict (khoa) do update set url = excluded.url, cap_nhat = now();
+end $$;
+grant execute on function public.admin_dat_anh(text, text, text) to anon, authenticated;
+
+-- ---------- KiotViet: phần RIÊNG TƯ (khách hàng, hoá đơn, công nợ) — CHỈ ADMIN ----------
+-- GitHub Actions (scripts/kiotviet-sync.mjs) ghi bằng PIN; app chỉ đọc được khi là Admin
+-- (phiên email bachvu47@gmail.com hoặc PIN). anon/authenticated không đọc thẳng bảng.
+-- Phần công khai (hàng hoá, tồn, giá bán) nằm ở nhánh du-lieu: kiotviet-cong-khai.json.
+create table if not exists public.kv_rieng (
+  id       int primary key default 1 check (id = 1),
+  du_lieu  text not null,          -- base64(gzip(JSON { capNhat, hoaDon, khach }))
+  cap_nhat timestamptz not null default now()
+);
+alter table public.kv_rieng enable row level security;
+revoke all on public.kv_rieng from anon, authenticated;
+
+create or replace function public.admin_ghi_kiotviet(p_pin text, p_du_lieu text) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform public._bat_pin(p_pin);
+  insert into public.kv_rieng (id, du_lieu, cap_nhat) values (1, p_du_lieu, now())
+  on conflict (id) do update set du_lieu = excluded.du_lieu, cap_nhat = now();
+end $$;
+
+create or replace function public.admin_doc_kiotviet(p_pin text default null)
+returns table (du_lieu text, cap_nhat timestamptz)
+language plpgsql stable security definer set search_path = public, extensions as $$
+begin
+  perform public._bat_pin(p_pin);
+  return query select k.du_lieu, k.cap_nhat from public.kv_rieng k where k.id = 1;
+end $$;
+
+grant execute on function public.admin_ghi_kiotviet(text, text), public.admin_doc_kiotviet(text) to anon, authenticated;
+
+grant execute on function public.kiem_tra_pin(text), public.la_admin(), public.de_xuat_sua_sai(text, text, text, text, text),
   public.admin_zalo_bat_dau(text, text, text), public.dang_ky_thiet_bi(text, text, text, text),
   public.admin_ghi(text, jsonb), public.admin_gan_vector(text, jsonb), public.admin_xoa(text, text[]),
   public.tim_tri_thuc(extensions.vector, int, float),
