@@ -61,7 +61,9 @@ NGUYÊN TẮC NỘI DUNG:
 - Thứ tự ưu tiên nguồn: (1) ĐÍNH CHÍNH TỪ ADMIN → (2) TRI THỨC VẬT LIỆU NHÀ / WEBSITE vatlieunha.vn → (3) KẾT QUẢ TÌM WEB (nếu có) → (4) kiến thức chung ngành của bạn.
 - NHỚ NGỮ CẢNH HỘI THOẠI: câu hỏi ngắn / nối tiếp ("thương hiệu nào?", "giá sao?", "loại nào bền?", "còn cái kia?", "ở đâu bán?") LUÔN hiểu theo CHỦ ĐỀ đang nói ở các tin trước, và nhắc lại chủ đề trong câu xác nhận (vd đang nói ngói bitum phủ đá, hỏi "thương hiệu nào" → "Anh/chị hỏi các thương hiệu ngói bitum phủ đá phải không ạ?"). Chỉ đổi chủ đề khi người hỏi nêu rõ chủ đề mới.
 - THIẾU DỮ LIỆU NỘI BỘ VẪN TRẢ LỜI: tri thức/kho bên dưới không có thông tin → dùng kiến thức chung ngành vật liệu xây dựng để trả lời đầy đủ, hữu ích (thương hiệu phổ biến, phân loại, cấu tạo, ưu nhược điểm, cách chọn, nguyên nhân & cách xử lý). Nói rõ 1 lần, tự nhiên, rằng đây là "thông tin chung, chưa phải dữ liệu riêng của Vật Liệu Nhà". KHÔNG trả lời cụt "chưa có dữ liệu". Vẫn GIỮ: không bịa số liệu của một sản phẩm cụ thể, không bịa giá/tồn kho, không khẳng định cửa hàng có bán sản phẩm không có trong tri thức/kho (mời gọi hotline 0947 844 446 để kiểm tra hàng). Có sản phẩm/thương hiệu cửa hàng đang có trong tri thức/kho → giới thiệu những cái đó TRƯỚC.
-- HỎI DANH SÁCH (thương hiệu, loại, hãng sản xuất…): nêu cái cửa hàng có trong tri thức/kho trước (ghi "Vật Liệu Nhà đang có"), rồi bổ sung các thương hiệu phổ biến khác từ kiến thức chung cho đủ 4–6 mục. Tên loại sản phẩm (vd "Ngói Bitum", "Sơn chống thấm") KHÔNG phải thương hiệu — thương hiệu là tên hãng (vd Tegola, IKO, Owens Corning, Technonicol, Sika).
+- HỎI DANH SÁCH (thương hiệu, loại, hãng sản xuất…): nêu cái cửa hàng có trong tri thức/kho trước, rồi bổ sung các thương hiệu phổ biến khác (ghi "trên thị trường còn có…") cho đủ 4–6 mục.
+- CHỈ được nói "Vật Liệu Nhà đang có / đang bán / cung cấp" cho sản phẩm, thương hiệu XUẤT HIỆN trong tri thức, kho hoặc kết quả tìm trên vatlieunha.vn. Thương hiệu chỉ thấy trên internet hay từ kiến thức chung → TUYỆT ĐỐI không nói cửa hàng có bán, không nói "đại lý Vật Liệu Nhà cung cấp".
+- Số hiệu tiêu chuẩn (TCVN, ASTM…), mã sản phẩm, giá: chỉ nêu khi có trong tri thức hoặc kết quả tìm web bên dưới — không có thì nói chưa tra được, mời hỏi kỹ thuật Vật Liệu Nhà; KHÔNG liệt kê theo trí nhớ. Tên loại sản phẩm (vd "Ngói Bitum", "Sơn chống thấm") KHÔNG phải thương hiệu — thương hiệu là tên hãng (vd Tegola, IKO, Owens Corning, Technonicol, Sika).
 - ĐÁNH DẤU: nếu nội dung chính của câu trả lời KHÔNG lấy từ đính chính / tri thức / kho / kết quả tìm web bên dưới (tức là dùng kiến thức chung), thêm đúng dòng cuối cùng: ${'[[KIEN_THUC_CHUNG]]'} (hệ thống tự ẩn dòng này và gửi Admin bổ sung dữ liệu).
 - Câu hỏi kỹ thuật chung (nguyên nhân thấm/nứt, quy trình thi công, xử lý bề mặt, phân tích ảnh hiện trường) → dùng kiến thức chuyên môn để trả lời.
 - SỐ LIỆU CỦA MỘT SẢN PHẨM CỤ THỂ (định mức, tỷ lệ pha, số thành phần, thời gian khô, độ dày lớp, độ đàn hồi...) CHỈ được lấy từ đính chính / tri thức truy xuất / kho sản phẩm bên dưới. Không có số đó → ghi rõ "định mức/tỷ lệ pha xem trên bao bì hoặc tài liệu kỹ thuật (TDS) của sản phẩm", TUYỆT ĐỐI không tự đặt con số. Con số kinh nghiệm chung (vd độ ẩm nền ≤ 8% khi thi công PU) được nêu nhưng không gán cho sản phẩm cụ thể. Trình tự thi công: nêu các bước, còn độ dày lớp / thời gian chờ giữa lớp chỉ ghi khi có trong tri thức, không có thì ghi "theo TDS".
@@ -97,12 +99,12 @@ ${NGUYEN_TAC_CHUNG}
 
 // Tìm web (máy chủ bật công cụ tìm kiếm): dặn cách dùng kết quả
 const LOI_DAN_TIM_WEB = `
-TÌM WEB: người hỏi cần thông tin mới / yêu cầu tìm trên mạng — bạn CÓ công cụ tìm kiếm web, hãy dùng nó.
-- Tìm trên vatlieunha.vn trước (thêm "vatlieunha.vn" vào từ khoá), rồi các nguồn uy tín khác (hãng sản xuất, báo chí, tiêu chuẩn).
-- Tổng hợp ngắn gọn theo đúng CÁCH TRẢ LỜI ở trên; chỉ nêu số liệu có trong kết quả tìm được.
-- Cuối câu trả lời thêm 1 dòng "Nguồn: " + tên miền các trang đã dùng (vd "Nguồn: vatlieunha.vn, sika.com"), không dán link trang ngoài vatlieunha.vn.`
+TÌM WEB: người hỏi cần thông tin mới / yêu cầu tìm trên mạng. Dùng mục "KẾT QUẢ TÌM TRÊN INTERNET" và "KẾT QUẢ TÌM TRÊN vatlieunha.vn" bên dưới (không có mục đó mà bạn có công cụ tìm kiếm web thì tự tìm: vatlieunha.vn trước, rồi nguồn uy tín khác).
+- Tổng hợp từ NHIỀU nguồn, ngắn gọn theo đúng CÁCH TRẢ LỜI ở trên; chỉ nêu số liệu/giá có trong kết quả tìm được, ghi rõ là giá tham khảo thị trường.
+- Sản phẩm Vật Liệu Nhà đang có (tri thức/kho/vatlieunha.vn) → nhắc trước, rồi mới tới thông tin thị trường chung.
+- Cuối câu trả lời thêm 1 dòng "Nguồn: " + tên miền các trang đã dùng (vd "Nguồn: vatlieunha.vn, tcbm.vn"), không dán link trang ngoài vatlieunha.vn.`
 
-export function systemPrompt({ cheDo = 'noi-bo', khoNoiBo = '', triThuc = [], baiHoc = '', ketQuaWeb = '', timWeb = false } = {}) {
+export function systemPrompt({ cheDo = 'noi-bo', khoNoiBo = '', triThuc = [], baiHoc = '', ketQuaWeb = '', ketQuaInternet = '', timWeb = false } = {}) {
   const dinhChinh = triThuc.filter((t) => t.loai === 'sua_sai')
   const thamKhao = triThuc.filter((t) => t.loai !== 'sua_sai')
   return `${cheDo === 'khach' ? VAI_KHACH : VAI_NOI_BO}
@@ -111,6 +113,13 @@ ${timWeb ? LOI_DAN_TIM_WEB : ''}${
     ? `
 KẾT QUẢ TÌM TRÊN vatlieunha.vn (mới, dùng được kèm link):
 ${ketQuaWeb}
+`
+    : ''
+}${
+  ketQuaInternet
+    ? `
+KẾT QUẢ TÌM TRÊN INTERNET (nhiều nguồn ngoài Vật Liệu Nhà — đối chiếu, chỉ ghi tên miền nguồn, không dán link):
+${ketQuaInternet}
 `
     : ''
 }${
@@ -228,6 +237,52 @@ export function cauTruyVan(lichSu) {
 
 // Người hỏi muốn tìm trên mạng / thông tin mới → máy chủ bật công cụ tìm web
 export const RE_TIM_WEB = /(tìm (trên|giúp|thử|kiếm|hộ)|tra (trên|giúp|cứu trên)|search|google|cào|lên mạng|trên mạng|internet|trên web|vào web|lên web|mới nhất|hiện nay|năm 20\d\d|tin tức|thị trường|xu hướng)/i
+
+// ---------- TÌM INTERNET (dùng chung app + máy chủ; phần gọi mạng mỗi bên tự làm) ----------
+// DuckDuckGo Lite: chạy từ IP điện thoại/nhà mạng; IP máy chủ (AWS) bị chặn → máy chủ dùng Tavily (nếu có key)
+// hoặc công cụ browser_search của Groq. Bing trả kết quả lạc đề với tiếng Việt (thử 23/10/2026).
+export const UA_WEB = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36'
+const giaiMaHtml = (s = '') =>
+  s.replace(/<[^>]+>/g, ' ').replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n))).replace(/&amp;/g, '&').replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ').trim()
+const mienCua = (url) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return ''
+  }
+}
+
+// Câu đưa vào máy tìm kiếm: câu hỏi cuối bỏ phần "tìm trên mạng giúp mình…"; câu ngắn/nối tiếp → ghép câu hỏi trước
+export function cauTimWeb(lichSu) {
+  const hoi = (lichSu || []).filter((m) => m.tu === 'user').map((m) => m.text || '').filter(Boolean)
+  const cuoi = (hoi[hoi.length - 1] || '')
+    .replace(/(hãy |giúp (mình|em|tôi|anh|chị) |mình |em |tôi )?(tìm|tra|search|google|cào|kiếm)( (trên|lên|vào) (mạng|web|internet|google))?( giúp| hộ| thử)?( (mình|em|tôi|anh|chị))?( về| xem)?/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return (cuoi.split(' ').length < 5 && hoi.length > 1 ? `${hoi[hoi.length - 2]} ${cuoi}` : cuoi).slice(0, 150)
+}
+
+export const urlTimDdg = (cau) => `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(cau)}&kl=vn-vi`
+// Trang kết quả DuckDuckGo Lite → [{ url, ten, tom }] (bỏ vatlieunha.vn — đã tìm riêng)
+export function phanTichDdg(html = '') {
+  return [...html.matchAll(/<a[^>]+href="([^"]+)"[^>]*class=['"]result-link['"][^>]*>([\s\S]*?)<\/a>[\s\S]*?class=['"]result-snippet['"][^>]*>([\s\S]*?)<\/td>/g)]
+    .map((m) => {
+      const u = m[1].match(/uddg=([^&]+)/)
+      return { url: u ? decodeURIComponent(u[1]) : m[1], ten: giaiMaHtml(m[2]), tom: giaiMaHtml(m[3]) }
+    })
+    .filter((x) => /^https?:\/\//.test(x.url) && !/vatlieunha\.vn|duckduckgo\.com/.test(x.url))
+    .slice(0, 6)
+}
+// HTML trang → chữ phần nội dung chính
+export function vanBanTrang(html = '') {
+  return giaiMaHtml(((html.match(/<(main|article)[\s\S]*?<\/\1>/i) || html.match(/<body[\s\S]*?<\/body>/i) || [html])[0]).replace(/<(script|style|noscript|nav|header|footer|form|aside|svg|iframe)[\s\S]*?<\/\1>/gi, ' '))
+}
+// Kết quả + nội dung trang đầu → khối chữ cho Maika ("- Tiêu đề (miền): tóm tắt\n  Nội dung trang: …")
+export function khoiInternet(kq, noiDung = []) {
+  return kq.map((x, i) => `- ${x.ten} (${mienCua(x.url)}): ${x.tom}${noiDung[i] ? `\n  Nội dung trang: ${String(noiDung[i]).slice(0, 1500)}` : ''}`).join('\n')
+}
+// Tên miền nguồn trong khối kết quả internet
+export const mienNguon = (khoi = '') => [...new Set([...khoi.matchAll(/^- .*?\(([a-z0-9.-]+\.[a-z]{2,})\):/gim)].map((m) => m[1]))]
 
 // Dấu "dùng kiến thức chung" + dấu trích dẫn của công cụ tìm web (【1†L10-L20】) → ẩn khỏi câu trả lời
 export const DANH_DAU_KTC = '[[KIEN_THUC_CHUNG]]'

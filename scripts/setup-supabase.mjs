@@ -99,6 +99,8 @@ function khoaWebhookKiotViet() {
 const secrets = [
   ['GEMINI_API_KEY', docEnv('VITE_GEMINI_API_KEY')],
   ['GROQ_API_KEY', docEnv('VITE_GROQ_API_KEY')],
+  // Tìm internet cho Maika trên web/Zalo (tavily.com, free 1.000 lượt/tháng) — không có thì dùng Groq browser_search
+  ['TAVILY_API_KEY', docEnv('TAVILY_API_KEY')],
   // Zalo OA (developers.zalo.me → ứng dụng liên kết OA) — có thì hàm "zalo" mới chạy
   ['ZALO_APP_ID', docEnv('ZALO_APP_ID')],
   ['ZALO_APP_SECRET', docEnv('ZALO_APP_SECRET')],

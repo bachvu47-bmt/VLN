@@ -12,8 +12,8 @@
 // ============================================================
 import postgres from 'npm:postgres@3.4.4'
 import {
-  cauTruyVan, GEMINI_MODELS, gonLichSu, GROQ_MODELS, NHIET_DO, RE_CHE, RE_CHUA_CO, RE_TIM_WEB, rutGonNguCanh, sangMessagesGroq,
-  SO_CHIEU_VECTOR, SO_TIN_NHO, soLa, systemPrompt, tachDanhDau, toContents,
+  cauTimWeb, cauTruyVan, GEMINI_MODELS, gonLichSu, GROQ_MODELS, khoiInternet, mienNguon, NHIET_DO, phanTichDdg, RE_CHE, RE_CHUA_CO, RE_TIM_WEB,
+  rutGonNguCanh, sangMessagesGroq, SO_CHIEU_VECTOR, SO_TIN_NHO, soLa, systemPrompt, tachDanhDau, toContents, UA_WEB, urlTimDdg, vanBanTrang,
 } from '../_shared/maikaNao.js'
 
 const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
@@ -146,6 +146,39 @@ async function timTrenVln(cau: string) {
   ].join('\n')
 }
 
+// Tìm INTERNET trên máy chủ (cách đọc kết quả dùng chung trong maikaNao.js):
+//  1) Tavily (TAVILY_API_KEY — free 1.000 lượt/tháng, ổn định, trả sẵn nội dung trang)
+//  2) DuckDuckGo Lite — IP máy chủ (AWS) thường bị chặn → rỗng
+//  App Android tự tìm DuckDuckGo bằng IP điện thoại rồi gửi kèm (body.ketQuaInternet) → máy chủ dùng luôn.
+//  Không có kết quả → traLoi() để Groq browser_search tự tìm.
+const TAVILY_KEY = Deno.env.get('TAVILY_API_KEY') || ''
+const layTrang = (url: string) =>
+  fetch(url, { headers: { 'User-Agent': UA_WEB, 'Accept-Language': 'vi-VN,vi;q=0.9' }, signal: AbortSignal.timeout(4000) })
+    .then((p) => (p.ok && /html/.test(p.headers.get('content-type') || '') ? p.text() : ''))
+    .then((h) => vanBanTrang(h).slice(0, 1500))
+    .catch(() => '')
+async function timInternet(cau: string) {
+  if (TAVILY_KEY) {
+    try {
+      const r = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TAVILY_KEY}` },
+        body: JSON.stringify({ query: cau, max_results: 6, search_depth: 'basic', include_answer: false, exclude_domains: ['vatlieunha.vn'] }),
+        signal: AbortSignal.timeout(6000),
+      })
+      const ds = (await r.json())?.results || []
+      if (ds.length) return khoiInternet(ds.map((x: any) => ({ url: x.url, ten: x.title || '', tom: '' })), ds.map((x: any) => x.content || ''))
+    } catch (e: any) {
+      console.warn('[maika] Tavily lỗi:', e.message)
+    }
+  }
+  const html = await fetch(urlTimDdg(cau), { headers: { 'User-Agent': UA_WEB, 'Accept-Language': 'vi-VN,vi;q=0.9' }, signal: AbortSignal.timeout(5000) }).then((r) => r.text())
+  const kq = phanTichDdg(html)
+  if (!kq.length) return ''
+  // Đọc nhanh 3 trang đầu — trang nào chậm/lỗi thì chỉ dùng đoạn tóm tắt của kết quả tìm kiếm
+  return khoiInternet(kq, await Promise.all(kq.slice(0, 3).map((x) => layTrang(x.url))))
+}
+
 // Nhân viên hỏi chữ: Groq trước (nhiều lượt free), Gemini dự phòng
 // Khách trên web / có ảnh: Gemini trước — bám tri thức, ít trộn số liệu giữa các sản phẩm hơn
 // (thử 20/10/2026: gpt-oss-120b vẫn tự thêm độ dày lớp/thời gian chờ), hết lượt thì Groq đỡ
@@ -157,9 +190,12 @@ async function traLoi(nguCanh: any, lichSu: any[]) {
   // Tìm web lỗi (thường do 1 lần tìm ~17.000 token > hạn mức phút của Groq free) → Groq thường (nhanh),
   // rồi Gemini chế độ nhanh (≤ 15s) — giữ tổng thời gian trả lời ngắn
   const quaGeminiNhanh = async () => ({ text: await geminiChat(systemPrompt({ ...nguCanh, timWeb: false }), lichSu, true), nhaCungCap: 'gemini' })
+  // Có kết quả internet do máy chủ tự tìm → trả lời thường (rẻ token, nhanh); không có (bị chặn) → Groq tự tìm web
   const thuTu = (
     nguCanh.timWeb && GROQ_KEY && !lichSu.some((m) => m.anh)
-      ? [quaWeb, quaGroq, GEMINI_KEY && quaGeminiNhanh]
+      ? nguCanh.ketQuaInternet
+        ? [quaGroq, GEMINI_KEY && quaGeminiNhanh, quaWeb]
+        : [quaWeb, quaGroq, GEMINI_KEY && quaGeminiNhanh]
       : coAnh ? [GEMINI_KEY && quaGemini, GROQ_KEY && quaGroq] : [GROQ_KEY && quaGroq, GEMINI_KEY && quaGemini]
   ).filter(Boolean) as (() => Promise<any>)[]
   let loiCuoi: any
@@ -363,15 +399,20 @@ Deno.serve(async (req) => {
     const cauCuoi = [...lichSu].reverse().find((m) => m.tu === 'user')?.text || ''
     const timWeb = RE_TIM_WEB.test(cauCuoi)
     const triThucApp = cheDo === 'noi-bo' && Array.isArray(body?.triThuc) ? body.triThuc.slice(0, 10).map((t: any) => ({ loai: String(t?.loai || ''), tieuDe: String(t?.tieuDe || '').slice(0, 300), noiDung: String(t?.noiDung || '').slice(0, 3000), nguon: String(t?.nguon || '').slice(0, 300) })) : null
-    const [triThuc, ketQuaWeb, baiHoc] = await Promise.all([
+    const cauTim = timWeb ? cauTimWeb(lichSu) : ''
+    const [triThuc, ketQuaWeb, ketQuaInternet, baiHoc] = await Promise.all([
       triThucApp ?? timTriThuc(truyVan).catch((e) => (console.warn('[maika] tìm tri thức lỗi:', e.message), [])),
-      timWeb ? timTrenVln(truyVan).catch(() => '') : '',
+      timWeb ? timTrenVln(cauTim).catch(() => '') : '',
+      // App Android đã tự tìm (IP điện thoại không bị chặn) → dùng luôn; không thì máy chủ tự tìm
+      cheDo === 'noi-bo' && typeof body?.ketQuaInternet === 'string' && body.ketQuaInternet.trim()
+        ? body.ketQuaInternet.slice(0, 9000)
+        : timWeb ? timInternet(cauTim).catch((e) => (console.warn('[maika] tìm internet lỗi:', e.message), '')) : '',
       layBaiHoc(),
     ])
     // App gửi kho nội bộ của máy; khách web/Zalo → máy chủ tự gắn giá bán + còn/hết hàng KiotViet công khai
     const khoNoiBo = cheDo === 'noi-bo' ? String(body?.khoNoiBo || '').slice(0, 20000) : await giaChoKhach(truyVan)
 
-    const nguCanh = { cheDo, khoNoiBo, triThuc, baiHoc, ketQuaWeb, timWeb }
+    const nguCanh = { cheDo, khoNoiBo, triThuc, baiHoc, ketQuaWeb, ketQuaInternet, timWeb }
     let kq = await traLoi(nguCanh, lichSu)
     let ktc = tachDanhDau(kq.text)
     kq = { ...kq, text: ktc.text }
@@ -379,7 +420,7 @@ Deno.serve(async (req) => {
     // Tự soát trước khi gửi: con số kỹ thuật không có trong ngữ cảnh → bắt Maika viết lại 1 lần
     // (bỏ qua khi tìm web: số liệu đến từ trang web đã tìm, không nằm trong ngữ cảnh)
     const coSan = systemPrompt(nguCanh) + '\n' + lichSu.map((m) => m.text).join('\n')
-    const la = kq.nhaCungCap === 'groq-web' ? [] : soLa(kq.text, coSan)
+    const la = timWeb ? [] : soLa(kq.text, coSan)
     let tuSua = false
     if (la.length) {
       try {
@@ -399,13 +440,16 @@ Deno.serve(async (req) => {
       }
     }
     // Dựa vào kiến thức chung / tìm web → ghi nhật ký "thiếu dữ liệu" (job đêm tự nghiên cứu) + thẻ chờ Admin duyệt
-    const thieuDuLieu = ktc.kienThucChung || kq.nhaCungCap === 'groq-web'
+    // Dùng kết quả internet → luôn có dòng "Nguồn:" (model hay quên) — liệt kê đúng các trang đã tìm được
+    const nguonWeb = [...(ketQuaWeb ? ['vatlieunha.vn'] : []), ...mienNguon(ketQuaInternet)].slice(0, 5)
+    if (ketQuaInternet && nguonWeb.length && !/\n\s*Nguồn( tham khảo)?:/i.test(kq.text)) kq = { ...kq, text: `${kq.text}\nNguồn tham khảo: ${nguonWeb.join(', ')}` }
+    const thieuDuLieu = ktc.kienThucChung || kq.nhaCungCap === 'groq-web' || !!ketQuaInternet
     ghiNhatKy(cheDo, lichSu, triThuc, kq.text, tuSua, thieuDuLieu)
     if (thieuDuLieu) {
-      const viec = taoTheChoDuyet(cheDo, truyVan, kq.text, kq.nhaCungCap === 'groq-web').catch((e: any) => console.warn('[maika] tạo thẻ chờ duyệt lỗi:', e.message))
+      const viec = taoTheChoDuyet(cheDo, truyVan, kq.text, timWeb).catch((e: any) => console.warn('[maika] tạo thẻ chờ duyệt lỗi:', e.message))
       ;(globalThis as any).EdgeRuntime?.waitUntil?.(viec)
     }
-    return traVe({ ...kq, kienThucChung: thieuDuLieu })
+    return traVe({ ...kq, kienThucChung: thieuDuLieu, ...(timWeb ? { timWeb: { cauTim, nguon: nguonWeb, internet: !!ketQuaInternet } } : {}) })
   } catch (e: any) {
     console.error('[maika] lỗi:', e?.message)
     if (e?.status === 429) return traVe({ loi: 'Maika đang hết lượt AI miễn phí, anh/chị thử lại sau ít phút ạ.', choGiay: e.choGiay || 60 }, 429)

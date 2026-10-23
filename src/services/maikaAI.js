@@ -12,6 +12,7 @@ import { aiCoCauHinh, geminiChat, mayChuMaikaCoCauHinh } from './maikaChatbot'
 import { dangKyTheoDoi as dangKyTheoDoiTriThuc, phienBanTriThuc, truyXuat } from './vectorStore'
 import { duLieuKV, goiYSanPhamTuCau, tienVN } from './kiotViet'
 import { cauTruyVan } from '../../supabase/functions/_shared/maikaNao.js'
+import { canTimWeb, timInternetTrenMay } from './timWeb'
 
 function coMang() {
   return typeof navigator === 'undefined' || navigator.onLine !== false
@@ -155,7 +156,10 @@ export async function maikaChatAI(lichSu) {
     if (daCo) return { ...daCo, tuCache: true }
 
     const thamKhao = truyVan.trim() ? await truyXuat(truyVan, { k: 6 }) : []
-    const { text, nhaCungCap, kienThucChung } = await geminiChat(lichSu, { khoNoiBo: khoNoiBo() + kv, triThuc: thamKhao })
+    // "Tìm trên mạng…" → điện thoại tự tìm internet (song song với truy xuất tri thức đã xong ở trên)
+    const timWeb = canTimWeb(cauHoiCuoi)
+    const ketQuaInternet = timWeb ? await timInternetTrenMay(lichSu).catch(() => '') : ''
+    const { text, nhaCungCap, kienThucChung } = await geminiChat(lichSu, { khoNoiBo: khoNoiBo() + kv, triThuc: thamKhao, timWeb, ketQuaInternet })
     const sp = timSP(cauHoiCuoi)
     const taiLieu = XIN_TAI_LIEU.test(cauHoiCuoi) ? gomTaiLieu(thamKhao, sp) : undefined
     const kq = { text: text || '(Maika chưa có câu trả lời)', sp, nguon: nhaCungCap, taiLieu, kienThucChung }
