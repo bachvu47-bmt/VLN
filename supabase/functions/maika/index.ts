@@ -11,7 +11,10 @@
 //  Secrets: GEMINI_API_KEY, GROQ_API_KEY (đặt bằng scripts/setup-supabase.mjs). SUPABASE_DB_URL có sẵn.
 // ============================================================
 import postgres from 'npm:postgres@3.4.4'
-import { cauTruyVan, GEMINI_MODELS, GROQ_MODELS, NHIET_DO, RE_CHE, RE_CHUA_CO, rutGonNguCanh, sangMessagesGroq, SO_CHIEU_VECTOR, soLa, systemPrompt, toContents } from '../_shared/maikaNao.js'
+import {
+  cauTruyVan, GEMINI_MODELS, gonLichSu, GROQ_MODELS, NHIET_DO, RE_CHE, RE_CHUA_CO, RE_TIM_WEB, rutGonNguCanh, sangMessagesGroq,
+  SO_CHIEU_VECTOR, SO_TIN_NHO, soLa, systemPrompt, tachDanhDau, toContents,
+} from '../_shared/maikaNao.js'
 
 const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
 const GROQ_KEY = Deno.env.get('GROQ_API_KEY') || ''
@@ -105,14 +108,60 @@ async function groqChat(system: string, lichSu: any[]) {
   throw loiCuoi || new LoiAI(429, 'Các model Groq đang hết lượt', 30)
 }
 
+// ---------- Tìm web ----------
+// Groq gpt-oss-120b + công cụ browser_search có sẵn (free; đo 23/10/2026: ~3–7s). Gemini Google Search
+// free tier hết lượt (429) nên không dùng. Lỗi → trả lời thường bằng tri thức + kiến thức chung.
+async function groqTimWeb(system: string, lichSu: any[]) {
+  const res = await fetch(GROQ_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROQ_KEY}` },
+    body: JSON.stringify({
+      model: 'openai/gpt-oss-120b',
+      messages: sangMessagesGroq(system, lichSu.map(({ anh: _a, ...m }: any) => m)),
+      temperature: NHIET_DO,
+      max_tokens: 2048,
+      reasoning_effort: 'low',
+      tools: [{ type: 'browser_search' }],
+    }),
+    signal: AbortSignal.timeout(20000),
+  })
+  if (!res.ok) throw new LoiAI(res.status, await res.text().catch(() => ''), Number(res.headers.get('retry-after')) || 0)
+  const text = ((await res.json())?.choices?.[0]?.message?.content || '').trim()
+  if (!text) throw new LoiAI(502, 'Groq tìm web không trả nội dung')
+  return text
+}
+
+// Tìm thẳng trên vatlieunha.vn (bài viết + sản phẩm) — nhanh, có link hợp lệ để Maika dẫn
+const giaiMaHtml = (s = '') => s.replace(/<[^>]+>/g, ' ').replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n))).replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ').trim()
+async function timTrenVln(cau: string) {
+  const q = encodeURIComponent(cau.replace(/\n/g, ' ').slice(0, 120))
+  const lay = (url: string) => fetch(url, { signal: AbortSignal.timeout(4000) }).then((r) => (r.ok ? r.json() : [])).catch(() => [])
+  const [bai, sp] = await Promise.all([
+    lay(`https://vatlieunha.vn/wp-json/wp/v2/posts?search=${q}&per_page=3&_fields=title,link,excerpt`),
+    lay(`https://vatlieunha.vn/wp-json/wc/store/v1/products?search=${q}&per_page=4`),
+  ])
+  return [
+    ...(bai || []).map((b: any) => `- Bài viết: ${giaiMaHtml(b.title?.rendered)} — ${giaiMaHtml(b.excerpt?.rendered).slice(0, 220)}\nLink: ${b.link}`),
+    ...(sp || []).map((p: any) => `- Sản phẩm: ${giaiMaHtml(p.name)} — ${giaiMaHtml(p.short_description || p.description).slice(0, 220)}\nLink: ${p.permalink}`),
+  ].join('\n')
+}
+
 // Nhân viên hỏi chữ: Groq trước (nhiều lượt free), Gemini dự phòng
 // Khách trên web / có ảnh: Gemini trước — bám tri thức, ít trộn số liệu giữa các sản phẩm hơn
 // (thử 20/10/2026: gpt-oss-120b vẫn tự thêm độ dày lớp/thời gian chờ), hết lượt thì Groq đỡ
 async function traLoi(nguCanh: any, lichSu: any[]) {
   const coAnh = lichSu.some((m) => m.anh) || nguCanh.cheDo === 'khach'
-  const quaGemini = async () => ({ text: await geminiChat(systemPrompt(nguCanh), lichSu, nguCanh.cheDo === 'khach'), nhaCungCap: 'gemini' })
-  const quaGroq = async () => ({ text: await groqChat(systemPrompt(rutGonNguCanh(nguCanh)), lichSu), nhaCungCap: 'groq' })
-  const thuTu = (coAnh ? [GEMINI_KEY && quaGemini, GROQ_KEY && quaGroq] : [GROQ_KEY && quaGroq, GEMINI_KEY && quaGemini]).filter(Boolean) as (() => Promise<any>)[]
+  const quaGemini = async () => ({ text: await geminiChat(systemPrompt({ ...nguCanh, timWeb: false }), lichSu, nguCanh.cheDo === 'khach'), nhaCungCap: 'gemini' })
+  const quaGroq = async () => ({ text: await groqChat(systemPrompt(rutGonNguCanh({ ...nguCanh, timWeb: false })), lichSu), nhaCungCap: 'groq' })
+  const quaWeb = async () => ({ text: await groqTimWeb(systemPrompt(rutGonNguCanh(nguCanh)), lichSu), nhaCungCap: 'groq-web' })
+  // Tìm web lỗi (thường do 1 lần tìm ~17.000 token > hạn mức phút của Groq free) → Groq thường (nhanh),
+  // rồi Gemini chế độ nhanh (≤ 15s) — giữ tổng thời gian trả lời ngắn
+  const quaGeminiNhanh = async () => ({ text: await geminiChat(systemPrompt({ ...nguCanh, timWeb: false }), lichSu, true), nhaCungCap: 'gemini' })
+  const thuTu = (
+    nguCanh.timWeb && GROQ_KEY && !lichSu.some((m) => m.anh)
+      ? [quaWeb, quaGroq, GEMINI_KEY && quaGeminiNhanh]
+      : coAnh ? [GEMINI_KEY && quaGemini, GROQ_KEY && quaGroq] : [GROQ_KEY && quaGroq, GEMINI_KEY && quaGemini]
+  ).filter(Boolean) as (() => Promise<any>)[]
   let loiCuoi: any
   for (const thu of thuTu) {
     try {
@@ -199,7 +248,24 @@ async function layBaiHoc() {
   return _baiHoc.gia
 }
 
-function ghiNhatKy(cheDo: string, lichSu: any[], triThuc: any[], text: string, tuSua: boolean) {
+// Câu trả lời dựa vào kiến thức chung / tìm web → thẻ "Câu hỏi chưa có dữ liệu" vào Pending Cards (cho_duyet).
+// Admin sửa/bổ sung rồi duyệt → Maika học. Trùng câu hỏi → bỏ qua; tối đa 100 thẻ/ngày (web công khai).
+async function taoTheChoDuyet(cheDo: string, cauHoi: string, traLoi: string, timWeb: boolean) {
+  const chuan = cauHoi.toLowerCase().normalize('NFC').replace(/\s+/g, ' ').trim()
+  if (chuan.length < 6) return
+  const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(chuan))
+  const id = 'ktc:' + [...new Uint8Array(buf)].slice(0, 8).map((b) => b.toString(16).padStart(2, '0')).join('')
+  const [{ n }] = await sql`select count(*)::int as n from public.tri_thuc where id like 'ktc:%' and tao_luc > now() - interval '1 day'`
+  if (n >= 100) return
+  await sql`
+    insert into public.tri_thuc (id, loai, trang_thai, tieu_de, noi_dung, cau_hoi, tra_loi_sai, tra_loi_dung, tags, nguoi_tao)
+    values (${id}, 'sua_sai', 'cho_duyet', ${'Câu hỏi chưa có dữ liệu: ' + cauHoi.replace(/\n/g, ' · ').slice(0, 80)},
+            ${'Câu hỏi: ' + cauHoi + '\nTrả lời ĐÚNG: ' + traLoi}, ${cauHoi.slice(0, 2000)}, ${traLoi.slice(0, 4000)}, ${traLoi.slice(0, 4000)},
+            ${sql.json(['kien-thuc-chung', timWeb ? 'tim-web' : 'llm', cheDo])}, ${'Maika · ' + (timWeb ? 'tìm web' : 'kiến thức chung')})
+    on conflict (id) do nothing`
+}
+
+function ghiNhatKy(cheDo: string, lichSu: any[], triThuc: any[], text: string, tuSua: boolean, thieuDuLieu = false) {
   const cuoi = lichSu[lichSu.length - 1]
   const iTruoc = lichSu.map((m) => m.tu).lastIndexOf('maika', lichSu.length - 2)
   const biChe = iTruoc >= 0 && RE_CHE.test(cuoi?.text || '')
@@ -208,7 +274,7 @@ function ghiNhatKy(cheDo: string, lichSu: any[], triThuc: any[], text: string, t
     insert into public.nhat_ky (che_do, cau_hoi, tra_loi, tri_thuc, chua_co, bi_che, tu_sua, cau_hoi_truoc, tra_loi_truoc)
     values (${cheDo}, ${String(cuoi?.text || (cuoi?.anh ? '(ảnh)' : '')).slice(0, 2000)}, ${text.slice(0, 4000)},
             ${triThuc.map((t) => `[${t.tieuDe}] ${t.noiDung}`).join('\n\n').slice(0, 6000)},
-            ${RE_CHUA_CO.test(text)}, ${biChe}, ${tuSua}, ${cauTruoc}, ${biChe ? lichSu[iTruoc].text.slice(0, 4000) : null})`
+            ${thieuDuLieu || RE_CHUA_CO.test(text)}, ${biChe}, ${tuSua}, ${cauTruoc}, ${biChe ? lichSu[iTruoc].text.slice(0, 4000) : null})`
     .catch((e: any) => console.warn('[maika] ghi nhật ký lỗi:', e.message))
   // Không bắt người hỏi chờ việc ghi
   ;(globalThis as any).EdgeRuntime?.waitUntil?.(viec)
@@ -258,7 +324,7 @@ async function conLuot(cheDo: 'khach' | 'noi-bo', ip: string) {
 // ---------- Kiểm tra đầu vào ----------
 function lamSachLichSu(raw: unknown) {
   if (!Array.isArray(raw)) return null
-  const ds = raw.slice(-16).map((m: any, i: number, a: any[]) => {
+  const ds = raw.slice(-SO_TIN_NHO).map((m: any, i: number, a: any[]) => {
     const tu = m?.tu === 'maika' ? 'maika' : 'user'
     const text = String(m?.text || '').slice(0, 4000)
     const laCuoi = i === a.length - 1
@@ -268,7 +334,7 @@ function lamSachLichSu(raw: unknown) {
         : undefined
     return { tu, text, coAnh: !!m?.coAnh, ...(anh ? { anh } : {}) }
   })
-  return ds.some((m) => m.tu === 'user' && (m.text || m.anh)) ? ds : null
+  return ds.some((m) => m.tu === 'user' && (m.text || m.anh)) ? gonLichSu(ds) : null
 }
 
 Deno.serve(async (req) => {
@@ -293,18 +359,27 @@ Deno.serve(async (req) => {
       return traVe({ loi: cheDo === 'khach' ? 'Hôm nay Maika đã trả lời anh/chị nhiều câu rồi ạ. Anh/chị gọi 0947 844 446 hoặc nhắn Zalo để kỹ thuật viên hỗ trợ tiếp nhé!' : 'Đã hết lượt hỏi Maika hôm nay', choGiay: 3600 }, 429)
     }
 
-    const truyVan = cauTruyVan(lichSu)
+    const truyVan = cauTruyVan(lichSu) // câu nối tiếp ("thương hiệu nào") đã ghép chủ đề trước
+    const cauCuoi = [...lichSu].reverse().find((m) => m.tu === 'user')?.text || ''
+    const timWeb = RE_TIM_WEB.test(cauCuoi)
     const triThucApp = cheDo === 'noi-bo' && Array.isArray(body?.triThuc) ? body.triThuc.slice(0, 10).map((t: any) => ({ loai: String(t?.loai || ''), tieuDe: String(t?.tieuDe || '').slice(0, 300), noiDung: String(t?.noiDung || '').slice(0, 3000), nguon: String(t?.nguon || '').slice(0, 300) })) : null
-    const triThuc = triThucApp ?? (await timTriThuc(truyVan).catch((e) => (console.warn('[maika] tìm tri thức lỗi:', e.message), [])))
+    const [triThuc, ketQuaWeb, baiHoc] = await Promise.all([
+      triThucApp ?? timTriThuc(truyVan).catch((e) => (console.warn('[maika] tìm tri thức lỗi:', e.message), [])),
+      timWeb ? timTrenVln(truyVan).catch(() => '') : '',
+      layBaiHoc(),
+    ])
     // App gửi kho nội bộ của máy; khách web/Zalo → máy chủ tự gắn giá bán + còn/hết hàng KiotViet công khai
     const khoNoiBo = cheDo === 'noi-bo' ? String(body?.khoNoiBo || '').slice(0, 20000) : await giaChoKhach(truyVan)
 
-    const nguCanh = { cheDo, khoNoiBo, triThuc, baiHoc: await layBaiHoc() }
+    const nguCanh = { cheDo, khoNoiBo, triThuc, baiHoc, ketQuaWeb, timWeb }
     let kq = await traLoi(nguCanh, lichSu)
+    let ktc = tachDanhDau(kq.text)
+    kq = { ...kq, text: ktc.text }
 
     // Tự soát trước khi gửi: con số kỹ thuật không có trong ngữ cảnh → bắt Maika viết lại 1 lần
+    // (bỏ qua khi tìm web: số liệu đến từ trang web đã tìm, không nằm trong ngữ cảnh)
     const coSan = systemPrompt(nguCanh) + '\n' + lichSu.map((m) => m.text).join('\n')
-    const la = soLa(kq.text, coSan)
+    const la = kq.nhaCungCap === 'groq-web' ? [] : soLa(kq.text, coSan)
     let tuSua = false
     if (la.length) {
       try {
@@ -313,16 +388,24 @@ Deno.serve(async (req) => {
           { tu: 'maika', text: kq.text },
           { tu: 'user', text: `(Kiểm tra nội bộ — không phải khách hỏi) Bản nháp có số liệu KHÔNG có trong tri thức: ${la.join(', ')}. Viết lại câu trả lời cho câu hỏi trước: bỏ hẳn các số đó (cần thì ghi "theo TDS"), giữ giọng và bố cục. Chỉ trả nội dung gửi người hỏi.` },
         ])
-        if (soLa(sua.text, coSan).length < la.length) {
-          kq = sua
+        const suaSach = tachDanhDau(sua.text)
+        if (soLa(suaSach.text, coSan).length < la.length) {
+          kq = { ...sua, text: suaSach.text }
+          ktc = { ...suaSach, kienThucChung: ktc.kienThucChung || suaSach.kienThucChung }
           tuSua = true
         }
       } catch (e: any) {
         console.warn('[maika] tự sửa lỗi:', e?.message)
       }
     }
-    ghiNhatKy(cheDo, lichSu, triThuc, kq.text, tuSua)
-    return traVe(kq)
+    // Dựa vào kiến thức chung / tìm web → ghi nhật ký "thiếu dữ liệu" (job đêm tự nghiên cứu) + thẻ chờ Admin duyệt
+    const thieuDuLieu = ktc.kienThucChung || kq.nhaCungCap === 'groq-web'
+    ghiNhatKy(cheDo, lichSu, triThuc, kq.text, tuSua, thieuDuLieu)
+    if (thieuDuLieu) {
+      const viec = taoTheChoDuyet(cheDo, truyVan, kq.text, kq.nhaCungCap === 'groq-web').catch((e: any) => console.warn('[maika] tạo thẻ chờ duyệt lỗi:', e.message))
+      ;(globalThis as any).EdgeRuntime?.waitUntil?.(viec)
+    }
+    return traVe({ ...kq, kienThucChung: thieuDuLieu })
   } catch (e: any) {
     console.error('[maika] lỗi:', e?.message)
     if (e?.status === 429) return traVe({ loi: 'Maika đang hết lượt AI miễn phí, anh/chị thử lại sau ít phút ạ.', choGiay: e.choGiay || 60 }, 429)

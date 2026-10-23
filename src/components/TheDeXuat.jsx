@@ -38,6 +38,7 @@ function MediaXem({ md }) {
 
 const NHAN = {
   cao: { ten: 'Maika cào từ nhà sản xuất', mau: 'bg-emerald-50 text-emerald-700', cu: 'Tóm tắt từ trang nguồn', moi: 'Tri thức sẽ nạp vào Maika (kiểm tra & chỉnh nếu cần)' },
+  ktc: { ten: 'Câu hỏi chưa có dữ liệu', mau: 'bg-violet-50 text-violet-700', cu: 'Maika đã trả lời bằng kiến thức chung / tìm web', moi: 'Nội dung chuẩn nạp vào Maika (sửa, bổ sung từ vatlieunha.vn)' },
   tin: { ten: 'Tin tức ngành', mau: 'bg-sky-50 text-sky-700', cu: 'Tóm tắt bài báo + trích nguyên văn', moi: 'Tin sẽ nạp vào Maika kèm ngày đăng (chỉnh nếu cần)' },
   sua_sai: { ten: 'Báo sai từ nhân viên', mau: 'bg-amber-50 text-amber-700', cu: 'Maika đã trả lời (bị báo sai)', moi: 'Nội dung đề xuất (Admin có thể chỉnh trước khi duyệt)' },
   tai_lieu: { ten: 'Tri thức hiện trường', mau: 'bg-blue-50 text-blue-700', cu: 'Câu trả lời của Maika', moi: 'Giải pháp sẽ nạp vào Maika (chỉnh nếu cần)' },
@@ -53,7 +54,7 @@ export default function TheDeXuat({ r }) {
   // đăng nhập email Admin ngay trên thẻ (1 lần/máy) rồi làm tiếp việc đang dở — không chặn bằng thông báo lỗi.
   const [hoiPin, setHoiPin] = useState(null) // null | 'duyet' | 'tuChoi'
   const tin = thongTinTin(r)
-  const nhan = tin ? NHAN.tin : r.tuDong ? NHAN.cao : NHAN[r.loai] || NHAN.sua_sai
+  const nhan = tin ? NHAN.tin : r.tuDong ? NHAN.cao : r.tags?.includes('kien-thuc-chung') ? NHAN.ktc : NHAN[r.loai] || NHAN.sua_sai
   const canPin = () => coKhoChung() && !coQuyenAdmin()
 
   const pheDuyet = async () => {

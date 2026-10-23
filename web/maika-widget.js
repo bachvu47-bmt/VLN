@@ -98,7 +98,7 @@
     try { return JSON.parse(sessionStorage.getItem(KHOA_LUU) || '[]') } catch (e) { return [] }
   }
   function ghiLuu(ds) {
-    try { sessionStorage.setItem(KHOA_LUU, JSON.stringify(ds.slice(-20))) } catch (e) { /* bỏ qua */ }
+    try { sessionStorage.setItem(KHOA_LUU, JSON.stringify(ds.slice(-40))) } catch (e) { /* bỏ qua */ }
   }
   // Ảnh điện thoại (3–8MB) → JPEG ≤ 1280px
   function thuNhoAnh(file) {
@@ -207,7 +207,8 @@
       lichSu.push(tinMoi)
       ghiLuu(lichSu)
       var cho = themTin('maika', '<span class="mkw-dang" aria-label="Maika đang trả lời"><i></i><i></i><i></i></span>')
-      var guiDi = lichSu.slice(-12).map(function (m, i, a) {
+      // 30 tin (15 lượt) — máy chủ rút gọn tin cũ, Maika nhớ chủ đề đang nói
+      var guiDi = lichSu.slice(-30).map(function (m, i, a) {
         var o = { tu: m.tu, text: m.text, coAnh: !!m.coAnh }
         if (i === a.length - 1 && anh) o.anh = { mime: anh.mime, base64: anh.base64 }
         return o

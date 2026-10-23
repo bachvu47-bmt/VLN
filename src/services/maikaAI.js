@@ -11,6 +11,7 @@ import { laySanPhamWeb } from '../data/productStore'
 import { aiCoCauHinh, geminiChat, mayChuMaikaCoCauHinh } from './maikaChatbot'
 import { dangKyTheoDoi as dangKyTheoDoiTriThuc, phienBanTriThuc, truyXuat } from './vectorStore'
 import { duLieuKV, goiYSanPhamTuCau, tienVN } from './kiotViet'
+import { cauTruyVan } from '../../supabase/functions/_shared/maikaNao.js'
 
 function coMang() {
   return typeof navigator === 'undefined' || navigator.onLine !== false
@@ -66,11 +67,7 @@ function khoKiotViet(cau) {
     .join('\n')}`
 }
 
-// Câu truy vấn RAG: câu hỏi cuối + câu hỏi trước đó (giữ ngữ cảnh "còn loại kia thì sao?")
-function cauTruyVan(lichSu) {
-  const hoi = lichSu.filter((m) => m.tu === 'user').map((m) => m.text)
-  return hoi.slice(-2).join('\n')
-}
+// Câu truy vấn RAG dùng chung với máy chủ: câu nối tiếp ("thương hiệu nào?") tự ghép chủ đề đang nói
 
 // Người dùng xin tài liệu/link → mới đính kèm (không tự động gắn link vào mọi câu trả lời)
 const XIN_TAI_LIEU = /(tài liệu|tai lieu|link|đường dẫn|tds|msds|catalog|datasheet|hướng dẫn thi công chi tiết)/i
@@ -158,11 +155,12 @@ export async function maikaChatAI(lichSu) {
     if (daCo) return { ...daCo, tuCache: true }
 
     const thamKhao = truyVan.trim() ? await truyXuat(truyVan, { k: 6 }) : []
-    const { text, nhaCungCap } = await geminiChat(lichSu, { khoNoiBo: khoNoiBo() + kv, triThuc: thamKhao })
+    const { text, nhaCungCap, kienThucChung } = await geminiChat(lichSu, { khoNoiBo: khoNoiBo() + kv, triThuc: thamKhao })
     const sp = timSP(cauHoiCuoi)
     const taiLieu = XIN_TAI_LIEU.test(cauHoiCuoi) ? gomTaiLieu(thamKhao, sp) : undefined
-    const kq = { text: text || '(Maika chưa có câu trả lời)', sp, nguon: nhaCungCap, taiLieu }
-    if (khoa && text) ghiCache(khoa, kq)
+    const kq = { text: text || '(Maika chưa có câu trả lời)', sp, nguon: nhaCungCap, taiLieu, kienThucChung }
+    // Không cache câu tìm web (thông tin mới) — kiến thức chung thì cache được, Admin duyệt bản chuẩn sẽ xoá cache
+    if (khoa && text && nhaCungCap !== 'groq-web') ghiCache(khoa, kq)
     return kq
   } catch (e) {
     console.warn('[Maika AI] Lỗi gọi AI:', e.message)

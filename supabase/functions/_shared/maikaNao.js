@@ -58,9 +58,12 @@ const NGUYEN_TAC_CHUNG = `${PHONG_CACH}
 
 NGUYÊN TẮC NỘI DUNG:
 - Tiếng Việt, thông mượt, chính xác, đi thẳng vấn đề.
-- Thứ tự ưu tiên nguồn: (1) ĐÍNH CHÍNH TỪ ADMIN → (2) TRI THỨC VẬT LIỆU NHÀ / WEBSITE vatlieunha.vn → (3) kiến thức chuyên môn của bạn.
-- KHÔNG CÓ DỮ LIỆU THÌ NÓI DỨT KHOÁT: câu hỏi về một SẢN PHẨM / THƯƠNG HIỆU / MÃ HÀNG / chủ đề cụ thể mà KHÔNG xuất hiện trong đính chính, tri thức truy xuất hay kho sản phẩm bên dưới → chỉ trả lời: "Maika chưa có dữ liệu về vấn đề này." (có thể thêm 1 câu xin tên đầy đủ, ảnh bao bì hoặc tài liệu). TUYỆT ĐỐI không đoán, không giới thiệu sản phẩm khác thay thế, không kể lan man.
-- Câu hỏi kỹ thuật chung (nguyên nhân thấm/nứt, quy trình thi công, xử lý bề mặt, phân tích ảnh hiện trường) → được dùng kiến thức chuyên môn để trả lời.
+- Thứ tự ưu tiên nguồn: (1) ĐÍNH CHÍNH TỪ ADMIN → (2) TRI THỨC VẬT LIỆU NHÀ / WEBSITE vatlieunha.vn → (3) KẾT QUẢ TÌM WEB (nếu có) → (4) kiến thức chung ngành của bạn.
+- NHỚ NGỮ CẢNH HỘI THOẠI: câu hỏi ngắn / nối tiếp ("thương hiệu nào?", "giá sao?", "loại nào bền?", "còn cái kia?", "ở đâu bán?") LUÔN hiểu theo CHỦ ĐỀ đang nói ở các tin trước, và nhắc lại chủ đề trong câu xác nhận (vd đang nói ngói bitum phủ đá, hỏi "thương hiệu nào" → "Anh/chị hỏi các thương hiệu ngói bitum phủ đá phải không ạ?"). Chỉ đổi chủ đề khi người hỏi nêu rõ chủ đề mới.
+- THIẾU DỮ LIỆU NỘI BỘ VẪN TRẢ LỜI: tri thức/kho bên dưới không có thông tin → dùng kiến thức chung ngành vật liệu xây dựng để trả lời đầy đủ, hữu ích (thương hiệu phổ biến, phân loại, cấu tạo, ưu nhược điểm, cách chọn, nguyên nhân & cách xử lý). Nói rõ 1 lần, tự nhiên, rằng đây là "thông tin chung, chưa phải dữ liệu riêng của Vật Liệu Nhà". KHÔNG trả lời cụt "chưa có dữ liệu". Vẫn GIỮ: không bịa số liệu của một sản phẩm cụ thể, không bịa giá/tồn kho, không khẳng định cửa hàng có bán sản phẩm không có trong tri thức/kho (mời gọi hotline 0947 844 446 để kiểm tra hàng). Có sản phẩm/thương hiệu cửa hàng đang có trong tri thức/kho → giới thiệu những cái đó TRƯỚC.
+- HỎI DANH SÁCH (thương hiệu, loại, hãng sản xuất…): nêu cái cửa hàng có trong tri thức/kho trước (ghi "Vật Liệu Nhà đang có"), rồi bổ sung các thương hiệu phổ biến khác từ kiến thức chung cho đủ 4–6 mục. Tên loại sản phẩm (vd "Ngói Bitum", "Sơn chống thấm") KHÔNG phải thương hiệu — thương hiệu là tên hãng (vd Tegola, IKO, Owens Corning, Technonicol, Sika).
+- ĐÁNH DẤU: nếu nội dung chính của câu trả lời KHÔNG lấy từ đính chính / tri thức / kho / kết quả tìm web bên dưới (tức là dùng kiến thức chung), thêm đúng dòng cuối cùng: ${'[[KIEN_THUC_CHUNG]]'} (hệ thống tự ẩn dòng này và gửi Admin bổ sung dữ liệu).
+- Câu hỏi kỹ thuật chung (nguyên nhân thấm/nứt, quy trình thi công, xử lý bề mặt, phân tích ảnh hiện trường) → dùng kiến thức chuyên môn để trả lời.
 - SỐ LIỆU CỦA MỘT SẢN PHẨM CỤ THỂ (định mức, tỷ lệ pha, số thành phần, thời gian khô, độ dày lớp, độ đàn hồi...) CHỈ được lấy từ đính chính / tri thức truy xuất / kho sản phẩm bên dưới. Không có số đó → ghi rõ "định mức/tỷ lệ pha xem trên bao bì hoặc tài liệu kỹ thuật (TDS) của sản phẩm", TUYỆT ĐỐI không tự đặt con số. Con số kinh nghiệm chung (vd độ ẩm nền ≤ 8% khi thi công PU) được nêu nhưng không gán cho sản phẩm cụ thể. Trình tự thi công: nêu các bước, còn độ dày lớp / thời gian chờ giữa lớp chỉ ghi khi có trong tri thức, không có thì ghi "theo TDS".
 - Tri thức truy xuất chỉ là "có thể liên quan" — mẩu nào không đúng chủ đề câu hỏi thì BỎ QUA, không nhắc tới.
 - MỖI MẨU [T#] LÀ MỘT SẢN PHẨM/CHỦ ĐỀ RIÊNG: đặc điểm, dạng sản phẩm (lỏng / màng tự dính / bột...), quy cách, số liệu của mẩu nào chỉ thuộc sản phẩm của mẩu đó — TUYỆT ĐỐI không gán sang sản phẩm khác. Gợi ý nhiều sản phẩm thì tách riêng từng sản phẩm.
@@ -92,11 +95,25 @@ ${NGUYEN_TAC_CHUNG}
 - Không bàn chuyện ngoài lĩnh vực vật liệu xây dựng / sửa chữa nhà; khách hỏi lạc đề thì lịch sự kéo về chủ đề công trình.
 - Cuối câu trả lời tư vấn giải pháp, có thể mời khách gửi ảnh hiện trạng hoặc để lại số điện thoại cho kỹ thuật viên gọi lại (tối đa 1 câu, không lặp lại ở mọi tin).`
 
-export function systemPrompt({ cheDo = 'noi-bo', khoNoiBo = '', triThuc = [], baiHoc = '' } = {}) {
+// Tìm web (máy chủ bật công cụ tìm kiếm): dặn cách dùng kết quả
+const LOI_DAN_TIM_WEB = `
+TÌM WEB: người hỏi cần thông tin mới / yêu cầu tìm trên mạng — bạn CÓ công cụ tìm kiếm web, hãy dùng nó.
+- Tìm trên vatlieunha.vn trước (thêm "vatlieunha.vn" vào từ khoá), rồi các nguồn uy tín khác (hãng sản xuất, báo chí, tiêu chuẩn).
+- Tổng hợp ngắn gọn theo đúng CÁCH TRẢ LỜI ở trên; chỉ nêu số liệu có trong kết quả tìm được.
+- Cuối câu trả lời thêm 1 dòng "Nguồn: " + tên miền các trang đã dùng (vd "Nguồn: vatlieunha.vn, sika.com"), không dán link trang ngoài vatlieunha.vn.`
+
+export function systemPrompt({ cheDo = 'noi-bo', khoNoiBo = '', triThuc = [], baiHoc = '', ketQuaWeb = '', timWeb = false } = {}) {
   const dinhChinh = triThuc.filter((t) => t.loai === 'sua_sai')
   const thamKhao = triThuc.filter((t) => t.loai !== 'sua_sai')
   return `${cheDo === 'khach' ? VAI_KHACH : VAI_NOI_BO}
-${
+${timWeb ? LOI_DAN_TIM_WEB : ''}${
+  ketQuaWeb
+    ? `
+KẾT QUẢ TÌM TRÊN vatlieunha.vn (mới, dùng được kèm link):
+${ketQuaWeb}
+`
+    : ''
+}${
   baiHoc
     ? `
 BÀI HỌC MAIKA TỰ RÚT RA TỪ CÁC LẦN TRẢ LỜI SAI TRƯỚC ĐÂY (luôn áp dụng):
@@ -186,11 +203,45 @@ export function sangMessagesGroq(system, lichSu) {
   ]
 }
 
-// Câu truy vấn RAG: câu hỏi cuối + câu hỏi trước đó (giữ ngữ cảnh "còn loại kia thì sao?")
+// ---------- NHỚ HỘI THOẠI ----------
+// Gửi AI tối đa 30 tin (15 lượt hỏi–đáp). Tin cũ (ngoài 6 tin gần nhất) rút gọn ≤ 700 ký tự
+// để vừa hạn mức token Groq (~8.000/phút) mà vẫn giữ được chủ đề đang nói.
+export const SO_TIN_NHO = 30
+export function gonLichSu(lichSu) {
+  const ds = (lichSu || []).slice(-SO_TIN_NHO)
+  const moc = ds.length - 6
+  return ds.map((m, i) => (i < moc && (m.text || '').length > 700 ? { ...m, text: m.text.slice(0, 700) + '…' } : m))
+}
+
+// Câu hỏi nối tiếp: ngắn, hoặc mở đầu / chứa từ trỏ về chủ đề trước ("thương hiệu nào", "còn loại kia", "giá sao")
+const RE_NOI_TIEP = /^(còn|vậy|thế|thì|loại|hãng|thương hiệu|giá|cái|nó|bên|ở đâu|mua|nên|so với|khác)|(?:^|\s)(nào|này|đó|kia|nó|vậy|thế)\s*\??$/i
+// Câu truy vấn RAG: 2–3 câu hỏi gần nhất; câu nối tiếp → ghép thêm chủ đề (câu đầu câu trả lời trước của Maika)
 export function cauTruyVan(lichSu) {
-  return (lichSu || [])
-    .filter((m) => m.tu === 'user')
-    .map((m) => m.text || '')
-    .slice(-2)
-    .join('\n')
+  const ds = lichSu || []
+  const hoi = ds.filter((m) => m.tu === 'user').map((m) => m.text || '').filter(Boolean)
+  const cuoi = hoi[hoi.length - 1] || ''
+  if (cuoi.split(/\s+/).length > 7 && !RE_NOI_TIEP.test(cuoi.trim())) return hoi.slice(-2).join('\n')
+  const traLoiTruoc = [...ds].reverse().find((m) => m.tu === 'maika')?.text || ''
+  const chuDe = traLoiTruoc.split(/(?<=[.?!])\s|\n/)[0].slice(0, 160)
+  return [...hoi.slice(-3), chuDe].filter(Boolean).join('\n')
+}
+
+// Người hỏi muốn tìm trên mạng / thông tin mới → máy chủ bật công cụ tìm web
+export const RE_TIM_WEB = /(tìm (trên|giúp|thử|kiếm|hộ)|tra (trên|giúp|cứu trên)|search|google|cào|lên mạng|trên mạng|internet|trên web|vào web|lên web|mới nhất|hiện nay|năm 20\d\d|tin tức|thị trường|xu hướng)/i
+
+// Dấu "dùng kiến thức chung" + dấu trích dẫn của công cụ tìm web (【1†L10-L20】) → ẩn khỏi câu trả lời
+export const DANH_DAU_KTC = '[[KIEN_THUC_CHUNG]]'
+// Link ngoài kênh Vật Liệu Nhà (model hay dán link trang tìm được) → chỉ giữ tên miền
+const locLink = (text) =>
+  text.replace(/https?:\/\/[^\s)\]>"']+/gi, (url) => {
+    if (LINK_HOP_LE.test(url)) return url
+    try {
+      return new URL(url).hostname.replace(/^www\./, '')
+    } catch {
+      return ''
+    }
+  })
+export function tachDanhDau(text = '') {
+  const kienThucChung = text.includes(DANH_DAU_KTC)
+  return { text: locLink(text.split(DANH_DAU_KTC).join('').replace(/【[^】]*】/g, '')).replace(/\n{3,}/g, '\n\n').trim(), kienThucChung }
 }
