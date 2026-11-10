@@ -1,10 +1,29 @@
 {
   "tieuDe": "Maika nhớ ngữ cảnh & tìm internet · Phê duyệt tất cả",
   "changelog": [
-    { "loai": "moi", "noiDung": "Maika nhớ 15 lượt hỏi đáp gần nhất: hỏi tiếp \"thương hiệu nào?\", \"giá sao?\" là Maika hiểu đúng chủ đề đang nói." },
-    { "loai": "moi", "noiDung": "Maika tìm trên internet khi được nhờ (\"tìm trên mạng…\", \"mới nhất\", \"hiện nay\"): tổng hợp nhiều nguồn, ghi rõ nguồn tham khảo." },
-    { "loai": "caitien", "noiDung": "Không còn trả lời cụt \"chưa có dữ liệu\": Maika dùng kiến thức chung của ngành, câu nào chưa có dữ liệu riêng tự gửi Admin duyệt bổ sung." },
-    { "loai": "caitien", "noiDung": "Duyệt kiến thức: nút \"Phê duyệt tất cả\" theo bộ lọc đang chọn, có xác nhận và đếm tiến độ." },
-    { "loai": "caitien", "noiDung": "Maika không nhận vơ hàng cửa hàng không bán, không liệt kê số hiệu tiêu chuẩn hay giá khi chưa tra được." }
+    {
+      "loai": "moi",
+      "noiDung": "Maika nhớ 15 lượt hỏi đáp gần nhất: hỏi tiếp \"thương hiệu nào?\", \"giá sao?\" là Maika hiểu đúng chủ đề đang nói."
+    },
+    {
+      "loai": "moi",
+      "noiDung": "Maika tìm trên internet khi được nhờ (\"tìm trên mạng…\", \"mới nhất\", \"hiện nay\"): tổng hợp nhiều nguồn, ghi rõ nguồn tham khảo."
+    },
+    {
+      "loai": "caitien",
+      "noiDung": "Không còn trả lời cụt \"chưa có dữ liệu\": Maika dùng kiến thức chung của ngành, câu nào chưa có dữ liệu riêng tự gửi Admin duyệt bổ sung."
+    },
+    {
+      "loai": "caitien",
+      "noiDung": "Duyệt kiến thức: nút \"Phê duyệt tất cả\" theo bộ lọc đang chọn, có xác nhận và đếm tiến độ."
+    },
+    {
+      "loai": "caitien",
+      "noiDung": "Maika không nhận vơ hàng cửa hàng không bán, không liệt kê số hiệu tiêu chuẩn hay giá khi chưa tra được."
+    },
+    {
+      "loai": "caitien",
+      "noiDung": "Tin tức ngành: bỏ cào giá VLXD, thêm xu hướng xây dựng & vật liệu mới (KienViet.net, Happynest); hàng chờ duyệt không còn thẻ rác từ bot Zalo."
+    }
   ]
 }

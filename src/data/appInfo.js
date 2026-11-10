@@ -3,7 +3,7 @@
 // ============================================================
 
 // Phiên bản hiện đang chạy trên thiết bị
-export const PHIEN_BAN_HIEN_TAI = '1.1.20'
+export const PHIEN_BAN_HIEN_TAI = '1.1.21'
 
 // ---- Cấu hình GitHub Releases (nguồn cập nhật OTA) ----
 // ⚠️ Đổi owner/repo thành repo GitHub thật của bạn.
@@ -18,12 +18,18 @@ export const GITHUB_API_LATEST = `https://api.github.com/repos/${GITHUB_REPO.own
 // Dữ liệu "server nội bộ" trả về khi kiểm tra cập nhật (mock).
 // Trong thực tế, dữ liệu này đến từ GitHub Releases API ở trên.
 export const BAN_CAP_NHAT_SERVER = {
-  phienBan: '1.1.20',
-  ngayPhatHanh: '2026-10-23',
+  phienBan: '1.1.21',
+  ngayPhatHanh: '2026-11-10',
   batBuoc: false, // true => chặn dùng app cho tới khi cập nhật
-  tieuDe: 'KiotViet tự kết nối · Tra cứu có giá & tồn từng quy cách · Gửi tài liệu kiểu chat',
+  tieuDe: 'Maika nhớ ngữ cảnh & tìm internet · Phê duyệt tất cả',
   kichThuocMB: { exe: 108, apk: 3.8 },
   changelog: [
+    { loai: "moi", noiDung: "Maika nhớ 15 lượt hỏi đáp gần nhất: hỏi tiếp \"thương hiệu nào?\", \"giá sao?\" là Maika hiểu đúng chủ đề đang nói." },
+    { loai: "moi", noiDung: "Maika tìm trên internet khi được nhờ (\"tìm trên mạng…\", \"mới nhất\", \"hiện nay\"): tổng hợp nhiều nguồn, ghi rõ nguồn tham khảo." },
+    { loai: "caitien", noiDung: "Không còn trả lời cụt \"chưa có dữ liệu\": Maika dùng kiến thức chung của ngành, câu nào chưa có dữ liệu riêng tự gửi Admin duyệt bổ sung." },
+    { loai: "caitien", noiDung: "Duyệt kiến thức: nút \"Phê duyệt tất cả\" theo bộ lọc đang chọn, có xác nhận và đếm tiến độ." },
+    { loai: "caitien", noiDung: "Maika không nhận vơ hàng cửa hàng không bán, không liệt kê số hiệu tiêu chuẩn hay giá khi chưa tra được." },
+    { loai: "caitien", noiDung: "Tin tức ngành: bỏ cào giá VLXD, thêm xu hướng xây dựng & vật liệu mới (KienViet.net, Happynest); hàng chờ duyệt không còn thẻ rác từ bot Zalo." },
     { loai: 'moi', noiDung: 'KiotViet tự kết nối, không còn ô nhập "Mã dữ liệu cửa hàng": giá bán, tồn kho có sẵn trên mọi máy.' },
     { loai: 'caitien', noiDung: 'Bảo mật: khách hàng, hoá đơn, công nợ chỉ máy Admin xem được (máy chủ kiểm tra), nhân viên tra tồn kho & giá ở Tra cứu.' },
     { loai: 'moi', noiDung: 'Tra cứu: mỗi sản phẩm hiện giá & tồn theo từng quy cách (1L, 5L, 20L…) từ KiotViet, kèm hồ sơ, hướng dẫn, định mức từ vatlieunha.vn. Bỏ hàng minh hoạ.' },
