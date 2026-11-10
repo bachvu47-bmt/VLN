@@ -19,7 +19,9 @@ export const NGUON_CAO = [
 ]
 // Tin tức ngành (khớp scripts/cao-tin-tuc.mjs) — thẻ ghi thẳng vào kho chung, trạng thái chờ duyệt
 export const NGUON_TIN = [
-  { ten: 'Google News (tin tức)', mien: 'news.google.com', phamVi: 'Tìm theo từ khoá: chống thấm, sơn/keo/hoàn thiện, vật liệu mới, Sika, giá VLXD — đọc bài gốc, chỉ tin ≤ 3 ngày' },
+  { ten: 'Google News (tin tức)', mien: 'news.google.com', phamVi: 'Tìm theo từ khoá: chống thấm, sơn/keo/hoàn thiện, vật liệu mới, Sika — đọc bài gốc, chỉ tin ≤ 3 ngày (bỏ cào giá VLXD)' },
+  { ten: 'Kiến Việt (xu hướng)', mien: 'kienviet.net', phamVi: 'Xu hướng kiến trúc, vật liệu & giải pháp hoàn thiện mới — tin ≤ 7 ngày' },
+  { ten: 'Happynest (xu hướng)', mien: 'happynest.vn', phamVi: 'Xu hướng nhà ở, vật liệu, trần/mái/sàn/ốp/sơn — tin ≤ 7 ngày, bỏ phong thuỷ/tử vi' },
   { ten: 'VnExpress · Tuổi Trẻ (tin tức)', mien: 'vnexpress.net · tuoitre.vn', phamVi: 'RSS bất động sản / nhà đất, chỉ giữ tin chạm từ khoá ngành' },
 ]
 export const LICH_CAO = '5:30 và 12:30 mỗi ngày; tin tức 1 lần lúc 5:30 (GitHub Actions)'

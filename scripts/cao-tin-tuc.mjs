@@ -32,23 +32,29 @@ const bam = (s) => createHash('sha1').update(s).digest('hex').slice(0, 16)
 const ngayVN = (t = Date.now()) => new Date(t + 7 * 3600 * 1000).toISOString().slice(0, 10)
 
 // ---- Nguồn tin ----
-const gnews = (q) => `https://news.google.com/rss/search?q=${encodeURIComponent(q + ' when:2d')}&hl=vi&gl=VN&ceid=VN:vi`
+const gnews = (q, han = '2d') => `https://news.google.com/rss/search?q=${encodeURIComponent(q + ' when:' + han)}&hl=vi&gl=VN&ceid=VN:vi`
 export const NGUON_TIN = [
   { ten: 'Google News · chống thấm', rss: gnews('"chống thấm" OR "thấm dột"'), google: true },
   { ten: 'Google News · sơn, keo, hoàn thiện', rss: gnews('"sơn chống thấm" OR "keo dán gạch" OR "vật liệu hoàn thiện" OR "sơn nhà"'), google: true },
   { ten: 'Google News · vật liệu mới', rss: gnews('"vật liệu xây dựng" (mới OR xanh OR "công nghệ" OR "tiêu chuẩn")'), google: true },
   { ten: 'Google News · Sika', rss: gnews('Sika "xây dựng"'), google: true },
-  { ten: 'Google News · giá VLXD', rss: gnews('"giá xi măng" OR "giá thép xây dựng" OR "giá vật liệu xây dựng"'), google: true },
+  // Bỏ cào giá VLXD (chủ dự án 10/11/2026: chưa cần). Thay bằng xu hướng xây dựng & vật liệu mới từ trang kiến trúc / nhà ở.
+  // Hai trang không có RSS → lấy qua Google News lọc theo tên miền, cửa sổ 7 ngày (đăng thưa hơn báo).
+  { ten: 'Kiến Việt · xu hướng & vật liệu', rss: gnews('site:kienviet.net (vật liệu OR "xu hướng" OR "giải pháp" OR "công nghệ" OR "chống thấm" OR mái OR "mặt dựng" OR "hoàn thiện")', '7d'), google: true, xuHuong: true },
+  { ten: 'Happynest · xu hướng & vật liệu', rss: gnews('site:happynest.vn ("xu hướng" OR "vật liệu" OR "chống thấm" OR trần OR mái OR sàn OR "ốp tường" OR sơn)', '7d'), google: true, xuHuong: true },
   { ten: 'VnExpress · Bất động sản', rss: 'https://vnexpress.net/rss/bat-dong-san.rss' },
   { ten: 'Tuổi Trẻ · Nhà đất', rss: 'https://tuoitre.vn/rss/nha-dat.rss' },
 ]
 // Tiêu đề/mô tả phải chạm ít nhất 1 từ khoá ngành (báo tổng hợp có nhiều tin không liên quan)
-const TU_KHOA = /chống thấm|thấm dột|dột|vật liệu xây dựng|vlxd|xi măng|bê tông|vữa|keo dán gạch|gạch ốp|sơn (nước|chống|ngoại|nội|nhà)|sika|jotun|maxbond|thép xây dựng|giá thép|tiêu chuẩn xây dựng|tcvn|vật liệu (mới|xanh|thấm|hoàn thiện)|nứt (tường|sàn|trần)|mái (tôn|nhà)|sàn mái|tầng hầm|xây nhà|sửa nhà/i
+const TU_KHOA = /chống thấm|thấm dột|dột|vật liệu xây dựng|vlxd|xi măng|bê tông|vữa|keo dán gạch|gạch ốp|sơn (nước|chống|ngoại|nội|nhà)|sika|jotun|maxbond|thép xây dựng|tiêu chuẩn xây dựng|tcvn|vật liệu (mới|xanh|thấm|hoàn thiện)|nứt (tường|sàn|trần)|mái (tôn|nhà)|sàn mái|tầng hầm|xây nhà|sửa nhà/i
 // Nhiễu thường gặp: khai thác mỏ/cát đá cho công trình công, thể thao, tử vi, vi phạm giao thông
-const LOAI_BO = /khoáng sản|khai thác|mỏ đá|cát sỏi|bãi tập kết|điều phối|con giáp|phong thuỷ|phong thủy|bóng đá|giành chiến thắng|vòng \d|xử phạt|tai nạn|làm theo lời bác/i
-// Ưu tiên khi vượt GIOI_HAN: chống thấm / sản phẩm cửa hàng bán trước, rồi kỹ thuật, cuối cùng giá & thị trường
+const LOAI_BO = /khoáng sản|khai thác|mỏ đá|cát sỏi|bãi tập kết|điều phối|con giáp|phong thuỷ|phong thủy|bóng đá|giành chiến thắng|vòng \d|xử phạt|tai nạn|làm theo lời bác|xông nhà|mơ thấy|điềm báo|tử vi|bonsai|cây cảnh|giải thưởng|đồ án|tuyển dụng|giá (xi măng|thép|vật liệu|vlxd)/i
+// Nguồn xu hướng (Kiến Việt, Happynest): bài phải nói tới vật liệu / giải pháp hoàn thiện / xu hướng, giữ tối đa 7 ngày
+const TU_KHOA_XU_HUONG = /xu hướng|vật liệu|chống thấm|sơn|gạch|ốp|lát|trần|mái|sàn|tường|mặt dựng|cách nhiệt|cách âm|gỗ|đá |kính|bê tông|tấm|công nghệ|bền vững|xanh|tiết kiệm năng lượng|hoàn thiện|nội thất|ngoại thất/i
+const TUOI_XU_HUONG = 7
+// Ưu tiên khi vượt GIOI_HAN: chống thấm / sản phẩm cửa hàng bán trước, rồi xu hướng & vật liệu mới, rồi kỹ thuật
 // ("sơn" phải kèm loại sơn — tránh địa danh Lạng Sơn, Sơn La…)
-const UU_TIEN = [/chống thấm|thấm dột|dột|sika|jotun|maxbond|keo dán|sơn (nước|chống|phủ|lót|nhà|epoxy|ngoại|nội)/i, /bê tông|vữa|vật liệu (mới|xanh|hoàn thiện)|tiêu chuẩn|tcvn|nứt|mái|tầng hầm/i]
+const UU_TIEN = [/chống thấm|thấm dột|dột|sika|jotun|maxbond|keo dán|sơn (nước|chống|phủ|lót|nhà|epoxy|ngoại|nội)/i, /xu hướng|vật liệu (mới|xanh|hoàn thiện)|công nghệ mới|bền vững/i, /bê tông|vữa|tiêu chuẩn|tcvn|nứt|mái|tầng hầm/i]
 const diemUuTien = (x) => {
   const s = `${x.tieuDe} ${x.moTa}`
   const i = UU_TIEN.findIndex((re) => re.test(s))
@@ -77,6 +83,7 @@ async function docRSS(ng) {
       ngayDang: Date.parse(the(it, 'pubDate')) || 0,
       bao,
       google: !!ng.google,
+      xuHuong: !!ng.xuHuong,
     }
   })
 }
@@ -116,9 +123,9 @@ function ngayTrongTrang(html) {
 const MODELS = ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-20b']
 const SYS = `Bạn là kỹ sư vật liệu xây dựng của cửa hàng "Vật Liệu Nhà" (chống thấm, sơn, keo, vật liệu hoàn thiện). Đọc một BÀI BÁO và lập THẺ TIN TỨC để nhân viên/Maika dùng khi tư vấn khách.
 Trả về DUY NHẤT JSON: {"laTinNganh": true|false, "tieuDe": "tiêu đề ngắn gọn, đúng nội dung bài", "tomTat": "1-2 câu: chuyện gì, ở đâu, khi nào",
-"cacY": ["ý chính hữu ích khi tư vấn: xu hướng/giải pháp kỹ thuật, tiêu chuẩn/quy định mới, biến động giá & nguồn cung, sự cố thấm-nứt và bài học, sản phẩm/công nghệ mới — giữ NGUYÊN số liệu, đơn vị, mốc thời gian như trong bài"],
+"cacY": ["ý chính hữu ích khi tư vấn: xu hướng vật liệu & hoàn thiện đang lên, giải pháp kỹ thuật, tiêu chuẩn/quy định mới, sự cố thấm-nứt và bài học, sản phẩm/công nghệ mới — giữ NGUYÊN số liệu, đơn vị, mốc thời gian như trong bài"],
 "trichDan": ["2-3 câu chép NGUYÊN VĂN từ bài, làm căn cứ cho các ý trên"], "sanPham": ["tên sản phẩm/thương hiệu được nhắc"], "doTinCay": 0-100}
-laTinNganh=false nếu bài không liên quan vật liệu xây dựng/chống thấm/sơn/hoàn thiện nhà, hoặc chỉ là bài PR quảng cáo một thương hiệu mà không có thông tin kỹ thuật/thị trường, hoặc tin đất đai/giá nhà thuần tuý.
+laTinNganh=false nếu bài không liên quan vật liệu xây dựng/chống thấm/sơn/hoàn thiện nhà, hoặc chỉ là bài PR quảng cáo một thương hiệu mà không có thông tin kỹ thuật, hoặc tin đất đai/giá nhà/giá vật liệu thuần tuý, hoặc phong thuỷ/tử vi. Bài xu hướng kiến trúc, nhà ở, nội thất CÓ nói tới vật liệu hoặc giải pháp hoàn thiện cụ thể → laTinNganh=true.
 cacY CHỈ ghi điều bài viết nói ra — KHÔNG thêm lời khuyên, giải pháp, quy chuẩn hay sản phẩm của riêng bạn. Không suy đoán, không bịa số. doTinCay thấp nếu bài mơ hồ, thiếu nguồn hoặc là ý kiến cá nhân. Viết tiếng Việt.`
 
 // Chốt kiểm chứng (giống maika-tu-hoc): trích dẫn phải có nguyên văn trong bài
@@ -191,7 +198,11 @@ let ds = []
 for (const ng of NGUON_TIN) {
   try {
     const tin = await docRSS(ng)
-    const hop = tin.filter((x) => x.link && x.ngayDang >= moiNhat && TU_KHOA.test(`${x.tieuDe} ${x.moTa}`) && !LOAI_BO.test(x.tieuDe))
+    const hop = tin.filter((x) =>
+      x.link && !LOAI_BO.test(x.tieuDe) &&
+      (x.xuHuong
+        ? x.ngayDang >= Date.now() - TUOI_XU_HUONG * 86400000 && TU_KHOA_XU_HUONG.test(`${x.tieuDe} ${x.moTa}`)
+        : x.ngayDang >= moiNhat && TU_KHOA.test(`${x.tieuDe} ${x.moTa}`)))
     console.log(`[${ng.ten}] ${tin.length} tin · ${hop.length} hợp lệ`)
     ds.push(...hop)
   } catch (e) {

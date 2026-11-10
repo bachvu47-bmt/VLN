@@ -384,6 +384,10 @@ Deno.serve(async (req) => {
     return traVe({ loi: 'Dữ liệu gửi lên không hợp lệ' }, 400)
   }
   const cheDo: 'khach' | 'noi-bo' = body?.cheDo === 'noi-bo' ? 'noi-bo' : 'khach'
+  // Bot Zalo của website (vatlieunha.vn) gọi Maika làm việc nội bộ: phân loại tin, lập phiếu tra, soạn tin, viết lại kiến thức…
+  // Câu gửi lên là LỆNH HỆ THỐNG, không phải câu hỏi của người → không tạo thẻ chờ duyệt, không ghi nhật ký thiếu dữ liệu
+  // (trước 10/11/2026 các lệnh này đẻ ra thẻ rác "Báo sai từ nhân viên"). Bot tự quản hàng chờ duyệt của nó.
+  const heThong = cheDo === 'noi-bo' && body?.heThong === true
   const lichSu = lamSachLichSu(body?.lichSu)
   if (!lichSu) return traVe({ loi: 'Chưa có câu hỏi' }, 400)
 
@@ -444,8 +448,8 @@ Deno.serve(async (req) => {
     const nguonWeb = [...(ketQuaWeb ? ['vatlieunha.vn'] : []), ...mienNguon(ketQuaInternet)].slice(0, 5)
     if (ketQuaInternet && nguonWeb.length && !/\n\s*Nguồn( tham khảo)?:/i.test(kq.text)) kq = { ...kq, text: `${kq.text}\nNguồn tham khảo: ${nguonWeb.join(', ')}` }
     const thieuDuLieu = ktc.kienThucChung || kq.nhaCungCap === 'groq-web' || !!ketQuaInternet
-    ghiNhatKy(cheDo, lichSu, triThuc, kq.text, tuSua, thieuDuLieu)
-    if (thieuDuLieu) {
+    if (!heThong) ghiNhatKy(cheDo, lichSu, triThuc, kq.text, tuSua, thieuDuLieu)
+    if (thieuDuLieu && !heThong) {
       const viec = taoTheChoDuyet(cheDo, truyVan, kq.text, timWeb).catch((e: any) => console.warn('[maika] tạo thẻ chờ duyệt lỗi:', e.message))
       ;(globalThis as any).EdgeRuntime?.waitUntil?.(viec)
     }
